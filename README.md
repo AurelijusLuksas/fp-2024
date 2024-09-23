@@ -5,11 +5,11 @@ Ingredient list maker.
 
 # Commands
  - add (ingredient | ingredient_list) - Adds an ingredient or ingredient list to the selected list.
+ - create (ingredient) - Creates an ingredient which you can add to lists.
  - remove (ingredient | ingredient_list) - Removes an ingredient or ingredient list from the selected list.
  - get (ingredient | ingredient_list) - Returns an ingredient or igredient list.
  - select (ingredient | ingredient_list) - Selects a list or ingredient to work with.
  - update (ingredient | ingredient_list) (updated_ingredient | updated_ingredient_list) - Updates the selected ingredient or list.
- - append (ingredient | ingredient_list) (modified_ingredient | modified_ingredient_list) - Adds modification to the end of ingredient or list.
  - create_list (name) - Creates a new list.
  - delete (ingredient | ingredient_list) - Deletes already existing list or ingredient.
 
@@ -22,16 +22,27 @@ Ingredient list maker.
 <ingredient> ::= "ingredient: " <name> " " <quantity> " " <unit> " "
 <quantity> ::= <number>
 <unit> ::= "cup" | "cups" | "tbsp" | "tsp" | "oz" | "lb" | "g" | "kg" | "ml" | "l" | "pinch" | "cloves" | "full" | "half"
-<name> ::= <word> | <word> <name>
+<name> ::= <string> | <string> <name>
 <number> ::= <digit> | <digit> <number>
 <digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-<word> ::= <letter> | <letter> <word>
+<string> ::= <letter> | <letter> <string>
 <letter> ::= "a" | "b" | "c" | ... | "y" | "z" | "A" | "B" | "C" | ... | "Y" | "Z" | " "
+
+<commands> ::= <create> | <add> | <remove> | <get> | <select> | <update> | <create_list> | <delete>
+<create> ::= "create(" <name> ", " <quantity> ", " <unit> ")"
+<add> ::= "add(" <name> ")"
+<remove> ::= "remove(" <name> ")" 
+<get> ::= "get(" <name> ")" 
+<select> ::= "select(" <ingredient> ")" | "select (" <name> ")"
+<update> ::= "update(" <name> ", " <name> ", " <quantity> ", " <unit> ")" 
+<create_list> ::= "create_list(" <name> ")"
+<delete> ::= "delete(" <name> ")"
 ```
 
 # Example
 
 ```
+
 Tomato pasta {
     ingredient_list: {
         ingredient: Pasta 200 g
@@ -47,4 +58,11 @@ Tomato pasta {
         }
     }
 }
+
+create_list(pasta)
+create(Honey, 6, tbsp)
+update(Honey, Sugar, 15, g)
+select(ingredient: Garlic 3 cloves)
+delete(pasta)
+
 ```

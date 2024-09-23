@@ -5,9 +5,18 @@
 <ingredient> ::= "ingredient: " <name> " " <quantity> " " <unit> " "
 <quantity> ::= <number>
 <unit> ::= "cup" | "cups" | "tbsp" | "tsp" | "oz" | "lb" | "g" | "kg" | "ml" | "l" | "pinch" | "cloves" | "full" | "half"
-<name> ::= <word> | <word> <name>
+<name> ::= <string> | <string> <name>
 <number> ::= <digit> | <digit> <number>
 <digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-<word> ::= <letter> | <letter> <word>
+<string> ::= <letter> | <letter> <string>
 <letter> ::= "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z" | " "
 
+<commands> ::= <create> | <add> | <remove> | <get> | <select> | <update> | <create_list> | <delete>
+<create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
+<add> ::= "add (" <name> ")"
+<remove> ::= "remove (" <name> ")" 
+<get> ::= "get (" <name> ")" 
+<select> ::= "select (" <ingredient> ")" | "select (" <name> ")"
+<update> ::= "update (" <name> ", " <name> ", " <quantity> ", " <unit> ")" 
+<create_list> ::= "create_list (" <name> ")"
+<delete> ::= "delete (" <name> ")" 
