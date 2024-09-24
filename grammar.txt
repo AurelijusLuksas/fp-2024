@@ -1,4 +1,3 @@
-<recipe> ::= <name> | <name> " {" <ingredient_list> "}"
 <ingredient_list> ::= <name> ": {" <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> "}" | <name> ": {" <more_ingredient_lists> <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> <more_ingredients> "}"
 <more_ingredients> ::= <ingredient> | <ingredient> <more_ingredients>
 <more_ingredient_lists> ::= <ingredient_list> | <ingredient_list> <more_ingredient_lists>

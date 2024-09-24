@@ -15,7 +15,6 @@ Ingredient list maker.
 
 # BNF
 ``` 
-<recipe> ::= <name> | <name> " {" <ingredient_list> "}"
 <ingredient_list> ::= <name> ": {" <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> "}" | <name> ": {" <more_ingredient_lists> <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> <more_ingredients> "}"
 <more_ingredients> ::= <ingredient> | <ingredient> <more_ingredients>
 <more_ingredient_lists> ::= <ingredient_list> | <ingredient_list> <more_ingredient_lists>
@@ -43,21 +42,20 @@ Ingredient list maker.
 
 ```
 
-Tomato pasta {
-    Pasta {
-        Pasta: 200 g
-        Sauce: {
-            Canned: tomatoes 400 g
-            Olive: oil 2 tbsp
-            Garlic: 2 cloves
-            Onion: 1 full
-            Salt: 2 pinch
-            Black pepper: 1 pinch
-            Basil: 1 pinch
-            Parmesan: cheese 50 g
-        }
+Tomato Pasta {
+    Pasta: 200 g
+    Sauce: {
+        Canned: tomatoes 400 g
+        Olive oil: 2 tbsp
+        Garlic: 2 cloves
+        Onion: 1 full
+        Salt: 2 pinch
+        Black pepper: 1 pinch
+        Basil: 1 pinch
+        Parmesan: cheese 50 g
     }
 }
+
 
 create_list(pasta)
 create(Honey, 6, tbsp)
