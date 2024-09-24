@@ -16,10 +16,10 @@ Ingredient list maker.
 # BNF
 ``` 
 <recipe> ::= <name> | <name> " {" <ingredient_list> "}"
-<ingredient_list> ::= "ingredient_list: {" <more_ingredients> "}" | "ingredient_list: {" <more_ingredients> <more_ingredient_lists> "}" | "ingredient_list: {" <more_ingredient_lists> <more_ingredients> "}" | "ingredient_list: {" <more_ingredients> <more_ingredient_lists> <more_ingredients> "}"
+<ingredient_list> ::= <name> ": {" <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> "}" | <name> ": {" <more_ingredient_lists> <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> <more_ingredients> "}"
 <more_ingredients> ::= <ingredient> | <ingredient> <more_ingredients>
 <more_ingredient_lists> ::= <ingredient_list> | <ingredient_list> <more_ingredient_lists>
-<ingredient> ::= "ingredient: " <name> " " <quantity> " " <unit> " "
+<ingredient> ::= <name> ": " <quantity> " " <unit> " "
 <quantity> ::= <number>
 <unit> ::= "cup" | "cups" | "tbsp" | "tsp" | "oz" | "lb" | "g" | "kg" | "ml" | "l" | "pinch" | "cloves" | "full" | "half"
 <name> ::= <string> | <string> <name>
@@ -44,17 +44,17 @@ Ingredient list maker.
 ```
 
 Tomato pasta {
-    ingredient_list: {
-        ingredient: Pasta 200 g
-        ingredient_list: {
-            ingredient: Canned tomatoes 400 g
-            ingredient: Olive oil 2 tbsp
-            ingredient: Garlic 2 cloves
-            ingredient: Onion 1 full
-            ingredient: Salt 2 pinch
-            ingredient: Black pepper 1 pinch
-            ingredient: Basil 1 pinch
-            ingredient: Parmesan cheese 50 g
+    Pasta {
+        Pasta: 200 g
+        Sauce: {
+            Canned: tomatoes 400 g
+            Olive: oil 2 tbsp
+            Garlic: 2 cloves
+            Onion: 1 full
+            Salt: 2 pinch
+            Black pepper: 1 pinch
+            Basil: 1 pinch
+            Parmesan: cheese 50 g
         }
     }
 }
