@@ -60,7 +60,7 @@ Tomato Pasta {
 create_list(pasta)
 create(Honey, 6, tbsp)
 update(Honey, Sugar, 15, g)
-select(ingredient: Garlic 3 cloves)
+select(Garlic: 3 cloves)
 delete(pasta)
 
 ```
