@@ -48,11 +48,13 @@ Tomato Pasta {
         Canned: tomatoes 400 g
         Olive oil: 2 tbsp
         Garlic: 2 cloves
+        Spice mix: {
+            Salt: 2 pinch
+            Black pepper: 1 pinch
+            Basil: 1 pinch
+        }
         Onion: 1 full
-        Salt: 2 pinch
-        Black pepper: 1 pinch
-        Basil: 1 pinch
-        Parmesan: cheese 50 g
+        Parmesan cheese: 50 g
     }
 }
 
