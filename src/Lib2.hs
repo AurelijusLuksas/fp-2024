@@ -5,11 +5,25 @@ module Lib2 (
     Name(..),
     parseQuery,
     emptyState,
-    stateTransition
+    stateTransition,
+    parseName,
+    parseQuantity,
+    parseUnit,
+    parseIngredient,
+    parseIngredientList,
+    parseCreate,
+    parseCreateList,
+    parseAdd,
+    parseRemove,
+    parseGet,
+    parseSelect,
+    parseUpdate,
+    parseDelete
 ) where
 
 import Data.Char (isAlphaNum, isDigit, isLetter)
 import Data.List (isPrefixOf, find, delete)
+import Debug.Trace
 
 -- Define the Name data type
 data Name = NumberName Int | WordName String | StringName String
@@ -125,17 +139,17 @@ and3' f a b c input =
 and4' :: (a -> b -> c -> d -> e) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e
 and4' f a b c d input =
     case a input of
-        Right (v1, r1) ->
+        Right (v1, r1) -> 
             case b r1 of
-                Right (v2, r2) ->
+                Right (v2, r2) -> 
                     case c r2 of
-                        Right (v3, r3) ->
+                        Right (v3, r3) -> 
                             case d r3 of
                                 Right (v4, r4) -> Right (f v1 v2 v3 v4, r4)
-                                Left e4 -> Left e4
-                        Left e3 -> Left e3
-                Left e2 -> Left e2
-        Left e1 -> Left e1
+                                Left e4 -> Left $ "Error in fourth parser: " ++ e4
+                        Left e3 -> Left $ "Error in third parser: " ++ e3
+                Left e2 -> Left $ "Error in second parser: " ++ e2
+        Left e1 -> Left $ "Error in first parser: " ++ e1
 
 and5' :: (a -> b -> c -> d -> e -> f) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f
 and5' f a b c d e input =
@@ -155,6 +169,38 @@ and5' f a b c d e input =
                 Left e2 -> Left e2
         Left e1 -> Left e1
 
+and7' :: (a -> b -> c -> d -> e -> f -> g -> h)
+      -> Parser a
+      -> Parser b
+      -> Parser c
+      -> Parser d
+      -> Parser e
+      -> Parser f
+      -> Parser g
+      -> Parser h
+and7' g a b c d e f g' input =
+    case a input of
+        Right (v1, r1) ->
+            case b r1 of
+                Right (v2, r2) ->
+                    case c r2 of
+                        Right (v3, r3) ->
+                            case d r3 of
+                                Right (v4, r4) ->
+                                    case e r4 of
+                                        Right (v5, r5) ->
+                                            case f r5 of
+                                                Right (v6, r6) ->
+                                                    case g' r6 of
+                                                        Right (v7, r7) -> Right (g v1 v2 v3 v4 v5 v6 v7, r7)
+                                                        Left e7 -> Left e7
+                                                Left e6 -> Left e6
+                                        Left e5 -> Left e5
+                                Left e4 -> Left e4
+                        Left e3 -> Left e3
+                Left e2 -> Left e2
+        Left e1 -> Left e1
+
 or2 :: Parser a -> Parser a -> Parser a
 or2 a b input =
     case a input of
@@ -167,7 +213,7 @@ or2 a b input =
 string :: String -> Parser String
 string str input
     | str `isPrefixOf` input = Right (str, drop (length str) input)
-    | otherwise = Left $ "Expected '" ++ str ++ "'"
+    | otherwise = Left $ "Expected '" ++ str ++ "', but got '" ++ take (length str) input ++ "'"
 
 parseChar :: Char -> Parser Char
 parseChar c [] = Left ("Cannot find " ++ [c] ++ " in an empty input")
@@ -192,32 +238,42 @@ parseNumber str =
 
 parseName :: Parser Name
 parseName input =
-    case parseWord input of
+    let skipWhitespace = dropWhile (== ' ')
+        trimmedInput = skipWhitespace input
+    in case parseWord trimmedInput of
         Right (word, rest) -> Right (WordName word, rest)
         Left _ -> case parseNumber input of
             Right (num, rest) -> Right (NumberName num, rest)
             Left err -> Left err
 
 parseQuantity :: Parser Quantity
-parseQuantity input = fmap (\(n, rest) -> (Quantity n, rest)) (parseNumber input)
+parseQuantity input = 
+    let skipWhitespace = dropWhile (== ' ')
+        trimmedInput = skipWhitespace input
+    in case parseNumber trimmedInput of
+        Right (n, rest) -> Right (Quantity n, skipWhitespace rest)
+        Left err -> Left err
 
 parseUnit :: Parser Unit
-parseUnit input = case span isLetter input of
-    ("cup", rest) -> Right (Cup, rest)
-    ("cups", rest) -> Right (Cups, rest)
-    ("tbsp", rest) -> Right (Tbsp, rest)
-    ("tsp", rest) -> Right (Tsp, rest)
-    ("oz", rest) -> Right (Oz, rest)
-    ("lb", rest) -> Right (Lb, rest)
-    ("g", rest) -> Right (G, rest)
-    ("kg", rest) -> Right (Kg, rest)
-    ("ml", rest) -> Right (Ml, rest)
-    ("l", rest) -> Right (L, rest)
-    ("pinch", rest) -> Right (Pinch, rest)
-    ("cloves", rest) -> Right (Cloves, rest)
-    ("full", rest) -> Right (Full, rest)
-    ("half", rest) -> Right (Half, rest)
-    _ -> Left "Invalid unit"
+parseUnit input = 
+    let skipWhitespace = dropWhile (== ' ')
+        trimmedInput = skipWhitespace input
+    in case span isLetter trimmedInput of
+        ("cup", rest) -> Right (Cup, rest)
+        ("cups", rest) -> Right (Cups, rest)
+        ("tbsp", rest) -> Right (Tbsp, rest)
+        ("tsp", rest) -> Right (Tsp, rest)
+        ("oz", rest) -> Right (Oz, rest)
+        ("lb", rest) -> Right (Lb, rest)
+        ("g", rest) -> Right (G, rest)
+        ("kg", rest) -> Right (Kg, rest)
+        ("ml", rest) -> Right (Ml, rest)
+        ("l", rest) -> Right (L, rest)
+        ("pinch", rest) -> Right (Pinch, rest)
+        ("cloves", rest) -> Right (Cloves, rest)
+        ("full", rest) -> Right (Full, rest)
+        ("half", rest) -> Right (Half, rest)
+        _ -> Left "Invalid unit"
 
 parseIngredient :: Parser Ingredient
 parseIngredient = and3' Ingredient parseName (parseChar ':' *> parseQuantity) parseUnit
@@ -234,60 +290,61 @@ parseIngredients input =
         Left _ -> Right ([], input)
 
 parseQuery :: String -> Either String Query
-parseQuery input = case parseCreate input of
-    Right (query, _) -> Right query
-    Left err -> case parseAdd input of
+parseQuery input = 
+    let debugInput = "Input received: " ++ input
+    in trace debugInput $ case parseCreate input of
         Right (query, _) -> Right query
-        Left err -> case parseRemove input of
+        Left err1 -> case parseAdd input of
             Right (query, _) -> Right query
-            Left err -> case parseGet input of
+            Left err2 -> case parseRemove input of
                 Right (query, _) -> Right query
-                Left err -> case parseSelect input of
+                Left err3 -> case parseGet input of
                     Right (query, _) -> Right query
-                    Left err -> case parseUpdate input of
+                    Left err4 -> case parseSelect input of
                         Right (query, _) -> Right query
-                        Left err -> case parseCreateList input of
+                        Left err5 -> case parseUpdate input of
                             Right (query, _) -> Right query
-                            Left err -> case parseDelete input of
+                            Left err6 -> case parseCreateList input of
                                 Right (query, _) -> Right query
-                                Left err -> Left err
+                                Left err7 -> case parseDelete input of
+                                    Right (query, _) -> Right query
+                                    Left err8 -> Left $ debugInput ++ " | Parse errors: " ++ err1 ++ ", " ++ err2 ++ ", " ++ err3 ++ ", " ++ err4 ++ ", " ++ err5 ++ ", " ++ err6 ++ ", " ++ err7 ++ ", " ++ err8
 
 parseCreate :: Parser Query
-parseCreate input = case and4' (\_ name qty unit -> Create name qty unit) (string "create (") parseName (parseChar ',' *> parseQuantity) (parseChar ',' *> parseUnit <* parseChar ')') input of
-    Right (query, rest) -> Right (query, rest)
-    Left err -> Left err
+parseCreate = and7' create (string "create(") parseName (parseChar ',') parseQuantity (parseChar ',') parseUnit (parseChar ')')
+    where create _ name _ qty _ unit _ = Create name qty unit
 
 parseAdd :: Parser Query
-parseAdd input = case and2' (\_ name -> Add name) (string "add (") (parseName <* parseChar ')') input of
+parseAdd input = case and2' (\_ name -> Add name) (string "add(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
 parseRemove :: Parser Query
-parseRemove input = case and2' (\_ name -> Remove name) (string "remove (") (parseName <* parseChar ')') input of
+parseRemove input = case and2' (\_ name -> Remove name) (string "remove(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
 parseGet :: Parser Query
-parseGet input = case and2' (\_ name -> Get name) (string "get (") (parseName <* parseChar ')') input of
+parseGet input = case and2' (\_ name -> Get name) (string "get(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
 parseSelect :: Parser Query
-parseSelect input = case and2' (\_ ing -> Select ing) (string "select (") (parseIngredient <* parseChar ')') input of
+parseSelect input = case and2' (\_ ing -> Select ing) (string "select(") (parseIngredient <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
 parseUpdate :: Parser Query
-parseUpdate input = case and5' (\_ name1 name2 qty unit -> Update name1 name2 qty unit) (string "update (") parseName (parseChar ',' *> parseName) (parseChar ',' *> parseQuantity) (parseChar ',' *> parseUnit <* parseChar ')') input of
+parseUpdate input = case and5' (\_ name1 name2 qty unit -> Update name1 name2 qty unit) (string "update(") parseName (parseChar ',' *> parseName) (parseChar ',' *> parseQuantity) (parseChar ',' *> parseUnit <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
 parseCreateList :: Parser Query
-parseCreateList input = case and2' (\_ name -> CreateList name) (string "create_list (") (parseName <* parseChar ')') input of
+parseCreateList input = case and2' (\_ name -> CreateList name) (string "create_list(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
 parseDelete :: Parser Query
-parseDelete input = case and2' (\_ name -> Delete name) (string "delete (") (parseName <* parseChar ')') input of
+parseDelete input = case and2' (\_ name -> Delete name) (string "delete(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
