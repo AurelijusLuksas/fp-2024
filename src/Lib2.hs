@@ -48,84 +48,121 @@ type Parser a = String -> Either String (a, String)
 
 -- Define the State data type
 data State = State {
-    ingredientLists :: [IngredientList]
+    ingredientLists :: [(Name, [IngredientList])],
+    ingredients :: [Ingredient]
 } deriving (Show, Eq)
 
 -- Create an initial program's state
 emptyState :: State
 emptyState = State {
-    ingredientLists = []
+    ingredientLists = [],
+    ingredients = []
 }
 
 -- Update a state according to a query
-stateTransition :: State -> Query -> Either String (Maybe String, State)
-stateTransition state (Create name qty unit) = Right (Just "Ingredient created", state)
-stateTransition state (Add name) = Right (Just "Ingredient added", state)
-stateTransition state (Remove name) = Right (Just "Ingredient removed", state)
-stateTransition state (Get name) = Right (Just "Ingredient retrieved", state)
-stateTransition state (Select ingredient) = Right (Just "Ingredient selected", state)
-stateTransition state (SelectName name) = Right (Just "Name selected", state)
-stateTransition state (Update name1 name2 qty unit) = Right (Just "Ingredient updated", state)
-stateTransition state (CreateList name) = 
-    let newList = IngredientList name [] []
-        newLists = newList : ingredientLists state
-    in Right (Just "Ingredient list created", state { ingredientLists = newLists })
-stateTransition state (Delete name) = 
-    let newLists = filter (\(IngredientList n _ _) -> n /= name) (ingredientLists state)
-    in Right (Just "Ingredient list deleted", state { ingredientLists = newLists })
+stateTransition :: State -> Query -> Either String ([String], State)
+stateTransition (State lists ings) (Create name qty unit) =
+    let newIng = Ingredient name qty unit
+    in Right (["Created ingredient"], State lists (newIng : ings))
+
+stateTransition (State lists ings) (Add name) =
+    case find (\(Ingredient n _ _) -> n == name) ings of
+        Just ing -> Right (["Added ingredient"], State lists (ing : ings))
+        Nothing -> Left "Ingredient not found"
+
+stateTransition (State lists ings) (Remove name) =
+    let newIngs = filter (\(Ingredient n _ _) -> n /= name) ings
+    in Right (["Removed ingredient"], State lists newIngs)
+
+stateTransition (State lists ings) (Get name) =
+    case find (\(Ingredient n _ _) -> n == name) ings of
+        Just _ -> Right (["Got ingredient"], State lists ings)
+        Nothing -> Left "Ingredient not found"
+
+stateTransition (State lists ings) (Select ingredient) =
+    Right (["Selected ingredient"], State lists (ingredient : ings))
+
+stateTransition (State lists ings) (SelectName name) =
+    case find (\(Ingredient n _ _) -> n == name) ings of
+        Just _ -> Right (["Selected name"], State lists ings)
+        Nothing -> Left "Name not found"
+
+stateTransition (State lists ings) (Update name1 name2 qty unit) =
+    let newIngs = map (\(Ingredient n q u) -> if n == name1 then Ingredient name2 qty unit else Ingredient n q u) ings
+    in Right (["Updated ingredient"], State lists newIngs)
+
+stateTransition (State lists ings) (CreateList name) =
+    let newList = (name, [])
+        newLists = newList : lists
+    in Right (["Created list"], State newLists ings)
+
+stateTransition (State lists ings) (Delete name) =
+    let newLists = filter (\(n, _) -> n /= name) lists
+    in Right (["Deleted list"], State newLists ings)
 
 -- Helper functions for parsing
 and2' :: (a -> b -> c) -> Parser a -> Parser b -> Parser c
-and2' f pa pb input =
-    case pa input of
-        Right (a, rest1) -> case pb rest1 of
-            Right (b, rest2) -> Right (f a b, rest2)
-            Left err -> Left err
-        Left err -> Left err
+and2' f a b input =
+    case a input of
+        Right (v1, r1) ->
+            case b r1 of
+                Right (v2, r2) -> Right (f v1 v2, r2)
+                Left e2 -> Left e2
+        Left e1 -> Left e1
 
 and3' :: (a -> b -> c -> d) -> Parser a -> Parser b -> Parser c -> Parser d
-and3' f pa pb pc input =
-    case pa input of
-        Right (a, rest1) -> case pb rest1 of
-            Right (b, rest2) -> case pc rest2 of
-                Right (c, rest3) -> Right (f a b c, rest3)
-                Left err -> Left err
-            Left err -> Left err
-        Left err -> Left err
+and3' f a b c input =
+    case a input of
+        Right (v1, r1) ->
+            case b r1 of
+                Right (v2, r2) ->
+                    case c r2 of
+                        Right (v3, r3) -> Right (f v1 v2 v3, r3)
+                        Left e3 -> Left e3
+                Left e2 -> Left e2
+        Left e1 -> Left e1
 
 and4' :: (a -> b -> c -> d -> e) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e
-and4' f pa pb pc pd input =
-    case pa input of
-        Right (a, rest1) -> case pb rest1 of
-            Right (b, rest2) -> case pc rest2 of
-                Right (c, rest3) -> case pd rest3 of
-                    Right (d, rest4) -> Right (f a b c d, rest4)
-                    Left err -> Left err
-                Left err -> Left err
-            Left err -> Left err
-        Left err -> Left err
+and4' f a b c d input =
+    case a input of
+        Right (v1, r1) ->
+            case b r1 of
+                Right (v2, r2) ->
+                    case c r2 of
+                        Right (v3, r3) ->
+                            case d r3 of
+                                Right (v4, r4) -> Right (f v1 v2 v3 v4, r4)
+                                Left e4 -> Left e4
+                        Left e3 -> Left e3
+                Left e2 -> Left e2
+        Left e1 -> Left e1
 
 and5' :: (a -> b -> c -> d -> e -> f) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f
-and5' f pa pb pc pd pe input =
-    case pa input of
-        Right (a, rest1) -> case pb rest1 of
-            Right (b, rest2) -> case pc rest2 of
-                Right (c, rest3) -> case pd rest3 of
-                    Right (d, rest4) -> case pe rest4 of
-                        Right (e, rest5) -> Right (f a b c d e, rest5)
-                        Left err -> Left err
-                    Left err -> Left err
-                Left err -> Left err
-            Left err -> Left err
-        Left err -> Left err
+and5' f a b c d e input =
+    case a input of
+        Right (v1, r1) ->
+            case b r1 of
+                Right (v2, r2) ->
+                    case c r2 of
+                        Right (v3, r3) ->
+                            case d r3 of
+                                Right (v4, r4) ->
+                                    case e r4 of
+                                        Right (v5, r5) -> Right (f v1 v2 v3 v4 v5, r5)
+                                        Left e5 -> Left e5
+                                Left e4 -> Left e4
+                        Left e3 -> Left e3
+                Left e2 -> Left e2
+        Left e1 -> Left e1
 
 or2 :: Parser a -> Parser a -> Parser a
 or2 a b input =
     case a input of
         Right r1 -> Right r1
-        Left e1 -> case b input of
-            Right r2 -> Right r2
-            Left e2 -> Left (e1 ++ ", " ++ e2)
+        Left e1 ->
+            case b input of
+                Right r2 -> Right r2
+                Left e2 -> Left (e1 ++ ", " ++ e2)
 
 string :: String -> Parser String
 string str input
@@ -192,45 +229,65 @@ parseIngredients :: Parser [Ingredient]
 parseIngredients input =
     case parseIngredient input of
         Right (ing, rest) -> case parseIngredients rest of
-            Right (ings, rest') -> Right (ing:ings, rest')
+            Right (ings, rest') -> Right (ing : ings, rest')
             Left _ -> Right ([ing], rest)
         Left _ -> Right ([], input)
 
-parseQuery :: Parser Query
-parseQuery = parseCreate `or2` parseAdd `or2` parseRemove `or2` parseGet `or2` parseSelect `or2` parseUpdate `or2` parseCreateList `or2` parseDelete
+parseQuery :: String -> Either String Query
+parseQuery input = case parseCreate input of
+    Right (query, _) -> Right query
+    Left err -> case parseAdd input of
+        Right (query, _) -> Right query
+        Left err -> case parseRemove input of
+            Right (query, _) -> Right query
+            Left err -> case parseGet input of
+                Right (query, _) -> Right query
+                Left err -> case parseSelect input of
+                    Right (query, _) -> Right query
+                    Left err -> case parseUpdate input of
+                        Right (query, _) -> Right query
+                        Left err -> case parseCreateList input of
+                            Right (query, _) -> Right query
+                            Left err -> case parseDelete input of
+                                Right (query, _) -> Right query
+                                Left err -> Left err
 
 parseCreate :: Parser Query
-parseCreate = and4' (\_ name qty unit -> Create name qty unit) (string "create (") parseName parseQuantity parseUnit
+parseCreate input = case and4' (\_ name qty unit -> Create name qty unit) (string "create (") parseName (parseChar ',' *> parseQuantity) (parseChar ',' *> parseUnit <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
 
 parseAdd :: Parser Query
-parseAdd = and2' (\_ name -> Add name) (string "add (") parseName
+parseAdd input = case and2' (\_ name -> Add name) (string "add (") (parseName <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
 
 parseRemove :: Parser Query
-parseRemove = and2' (\_ name -> Remove name) (string "remove (") parseName
+parseRemove input = case and2' (\_ name -> Remove name) (string "remove (") (parseName <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
 
 parseGet :: Parser Query
-parseGet = and2' (\_ name -> Get name) (string "get (") parseName
+parseGet input = case and2' (\_ name -> Get name) (string "get (") (parseName <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
 
 parseSelect :: Parser Query
-parseSelect = and2' (\_ ing -> Select ing) (string "select (") parseIngredient
+parseSelect input = case and2' (\_ ing -> Select ing) (string "select (") (parseIngredient <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
 
 parseUpdate :: Parser Query
-parseUpdate = and5' (\_ name1 name2 qty unit -> Update name1 name2 qty unit) (string "update (") parseName (parseChar ',') parseName parseQuantity parseUnit
+parseUpdate input = case and5' (\_ name1 name2 qty unit -> Update name1 name2 qty unit) (string "update (") parseName (parseChar ',' *> parseName) (parseChar ',' *> parseQuantity) (parseChar ',' *> parseUnit <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
 
 parseCreateList :: Parser Query
-parseCreateList = and2' (\_ name -> CreateList name) (string "create_list (") parseName
+parseCreateList input = case and2' (\_ name -> CreateList name) (string "create_list (") (parseName <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
 
 parseDelete :: Parser Query
-parseDelete = and2' (\_ name -> Delete name) (string "delete (") parseName
-
--- | The instances are needed basically for tests
--- instance Eq Query where
---   (==) _ _= False
-
--- instance Show Query where
---   show _ = ""
-
--- | Parses user's input.
--- The function must have tests.
--- parseQuery :: String -> Either String Query
--- parseQuery _ = Left "Not implemented 2"
+parseDelete input = case and2' (\_ name -> Delete name) (string "delete (") (parseName <* parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
