@@ -12,10 +12,9 @@
 
 <commands> ::= <create> | <add> | <remove> | <get> | <select> | <update> | <create_list> | <delete>
 <create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
-<add> ::= "add (" <name> ")"
-<remove> ::= "remove (" <name> ")" 
+<add> ::= "add (" <name> ", " <list_name> ")"
+<remove> ::= "remove (" <name> ", " <list_name> ")" 
 <get> ::= "get (" <name> ")" 
-<select> ::= "select (" <name> ")"
-<update> ::= "update (" <name> ", " <quantity> ", " <unit> ")" 
 <create_list> ::= "create_list (" <name> ")"
-<delete> ::= "delete (" <name> ")" 
+<get_list> ::= "get_list (" <name> ")" 
+<delete> ::= "delete (" <name> ")"  
