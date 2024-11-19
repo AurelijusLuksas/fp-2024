@@ -382,7 +382,7 @@ parseQuery input =
                                     ++ err3 ++ ", " ++ err4 ++ ", " ++ err5 ++ ", " ++ err6 ++ ", "
                                     ++ err7
 
-
+-- <create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
 parseCreate :: Parser Query
 parseCreate = and7' create (string "create(") parseName (parseChar ',') parseQuantity (parseChar ',') parseUnit (parseChar ')')
     where create _ name _ qty _ unit _ = Create name qty unit
@@ -392,25 +392,30 @@ parseAdd :: Parser Query
 parseAdd = and5' add (string "add(") parseName (parseChar ',') parseName (parseChar ')')
     where add _ name _ listName _ = Add name listName
 
+-- <remove> ::= "remove (" <name> ", " <list_name> ")"
 parseRemove :: Parser Query
 parseRemove = and5' remove (string "remove(") parseName (parseChar ',') parseName (parseChar ')')
     where remove _ name _ listName _ = Remove name listName
 
+-- <get> ::= "get (" <name> ")"
 parseGet :: Parser Query
 parseGet input = case and2' (\_ name -> Get name) (string "get(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
+-- <create_list> ::= "create_list (" <name> ")"
 parseCreateList :: Parser Query
 parseCreateList input = case and2' (\_ name -> CreateList name) (string "create_list(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
+-- <get_list> ::= "get_list (" <name> ")"
 parseGetList :: Parser Query
 parseGetList input = case and2' (\_ name -> GetList name) (string "get_list(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
+-- <delete> ::= "delete (" <name> ")"
 parseDelete :: Parser Query
 parseDelete input = case and2' (\_ name -> Delete name) (string "delete(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
