@@ -27,7 +27,7 @@ module Lib2 (
 ) where
 
 import Data.Char (isSpace, isDigit, isLetter)
-import Data.List (isPrefixOf, find)
+import Data.List (isPrefixOf, find, intercalate)
 import Debug.Trace (trace)
 
 -- Define the Name data type
@@ -78,7 +78,6 @@ emptyState = State {
     ingredients = []
 }
 
-
 -- Update a state according to a query
 stateTransition :: State -> Query -> Either String ([String], State)
 stateTransition (State lists ings) (Create name qty unit) =
@@ -86,28 +85,22 @@ stateTransition (State lists ings) (Create name qty unit) =
     in Right (["Created ingredient"], State lists (newIng : ings))
 
 stateTransition (State lists ings) (Add ingName listName) =
-    case find (\(Ingredient n _ _) -> n == ingName) ings of
-        Just ing ->
-            let updatedLists = map (\(name, items) -> if name == listName then (name, addIngredientToList ing items) else (name, items)) lists
-                addIngredientToList ing (IngredientList n is sublists : rest)
-                    | n == listName = IngredientList n (ing : is) sublists : rest
-                    | otherwise = IngredientList n is (addIngredientToList ing sublists) : addIngredientToList ing rest
-                addIngredientToList _ [] = []
-            in if any (\(name, items) -> name == listName || not (null (addIngredientToList ing items))) updatedLists
-               then Right (["Added ingredient to list"], State updatedLists ings)
-               else Left "Ingredient or list not found"
-        Nothing ->
-            case find (\(n, items) -> n == ingName) lists of
-                Just (sublistName, sublistItems) ->
-                    let updatedLists = map (\(name, items) -> if name == listName then (name, addListToList sublistName sublistItems items) else (name, items)) lists
-                        addListToList sublistName sublistItems (IngredientList n is sublists : rest)
-                            | n == listName = IngredientList n is (IngredientList sublistName is sublistItems : sublists) : rest
-                            | otherwise = IngredientList n is (addListToList sublistName sublistItems sublists) : addListToList sublistName sublistItems rest
-                        addListToList _ _ [] = []
-                    in if any (\(name, items) -> name == listName || not (null (addListToList sublistName sublistItems items))) updatedLists
-                       then Right (["Added list to list"], State updatedLists ings)
-                       else Left "Ingredient or list not found"
-                Nothing -> Left "Ingredient or list not found"
+    let updatedLists = map (\(name, items) -> if name == listName then (name, addToList ingName items) else (name, items)) lists
+        addToList ingName items =
+            case find (\(Ingredient n _ _) -> n == ingName) ings of
+                Just ing -> addIngredientToList ing items
+                Nothing -> case lookup ingName lists of
+                    Just sublist -> addSublistToList sublist items
+                    Nothing -> items
+        addIngredientToList ing [] = []
+        addIngredientToList ing (IngredientList n is sublists : rest) =
+            IngredientList n (ing : is) sublists : rest
+        addSublistToList sublist [] = []
+        addSublistToList sublist (IngredientList n is sublists : rest) =
+            IngredientList n is (sublist ++ sublists) : rest
+    in if any (\(name, items) -> name == listName) updatedLists
+       then Right (["Added to list"], State updatedLists ings)
+       else Left "List not found"
 
 stateTransition (State lists ings) (Remove ingName listName) =
     let updatedLists = map (\(name, items) -> if name == listName then (name, removeIngredientFromList ingName items) else (name, items)) lists
@@ -143,9 +136,52 @@ stateTransition (State lists ings) (CreateEmptyList name) =
         in Right (["Created empty ingredient list"], State newLists ings)
 
 stateTransition state@(State lists ings) (GetList name) = 
-    case lookup name lists of
-        Just list -> trace (show list) (Right (["Found list"], state))
-        Nothing -> Left "List not found"
+    case findList name lists of
+        Just list -> 
+            let output = formatList name list
+            in Right ([output, "Found list"], state)
+        Nothing -> 
+            Left "List not found"
+    where
+        findList :: Name -> [(Name, [IngredientList])] -> Maybe [IngredientList]
+        findList _ [] = Nothing
+        findList name ((n, items):rest)
+            | name == n = Just items
+            | otherwise = case findListInItems name items of
+                Just list -> Just list
+                Nothing -> findList name rest
+
+        findListInItems :: Name -> [IngredientList] -> Maybe [IngredientList]
+        findListInItems _ [] = Nothing
+        findListInItems name (IngredientList n is sublists : rest)
+            | name == n = Just [IngredientList n is sublists]
+            | otherwise = case findListInItems name sublists of
+                Just list -> Just list
+                Nothing -> findListInItems name rest
+        
+        formatList :: Name -> [IngredientList] -> String
+        formatList name lists = formatName name ++ ": {\n" ++ unlines (map formatIngredientList lists) ++ "}"
+
+        formatIngredientList :: IngredientList -> String
+        formatIngredientList (IngredientList n is sublists) = 
+            unlines (map formatIngredient is) ++ 
+            concatMap (\sub -> 
+                        "\t" ++ formatName (getName sub) ++ ": {\n" ++ 
+                        indent (formatIngredientList sub) ++ "\t}\n") sublists
+            where
+                getName :: IngredientList -> Name
+                getName (IngredientList name _ _) = name
+
+
+        formatIngredient :: Ingredient -> String
+        formatIngredient (Ingredient n (Quantity q) unit) = 
+            "\t" ++ formatName n ++ ": " ++ show q ++ " " ++ show unit
+
+        formatName :: Name -> String
+        formatName (WordName n) = n  -- Adjust this line based on the actual structure of Name
+
+        indent :: String -> String
+        indent = unlines . map ("\t" ++) . lines
     
 
 stateTransition (State lists ings) (Delete name) =
