@@ -28,6 +28,7 @@ module Lib2 (
 
 import Data.Char (isSpace, isDigit, isLetter)
 import Data.List (isPrefixOf, find)
+import Debug.Trace (trace)
 
 -- Define the Name data type
 data Name = NumberName Int | WordName String | StringName String
@@ -77,46 +78,6 @@ emptyState = State {
     ingredients = []
 }
 
-formatIngredient :: Ingredient -> String
-formatIngredient (Ingredient (WordName name) (Quantity qty) unit) = name ++ ": " ++ show qty ++ " " ++ show unit
-formatIngredient (Ingredient (NumberName num) (Quantity qty) unit) = show num ++ ": " ++ show qty ++ " " ++ show unit
-formatIngredient (Ingredient (StringName str) (Quantity qty) unit) = str ++ ": " ++ show qty ++ " " ++ show unit
-
--- Main function to format an ingredient list
-formatIngredientList :: Name -> [IngredientList] -> String
-formatIngredientList name lists = formatName name ++ ": {" ++ formatLists lists ++ "}"
-
--- Function to format the name of an ingredient or list
-formatName :: Name -> String
-formatName (WordName name) = name
-formatName (NumberName num) = show num
-formatName (StringName str) = str
-
--- Function to format multiple ingredient lists at the top level
-formatLists :: [IngredientList] -> String
-formatLists [] = ""
-formatLists (IngredientList name is sublists : xs) = 
-    formatIngredients is 
-    ++ (if not (null is) && not (null sublists) then ", " else "")
-    ++ formatFlatSublists sublists 
-    ++ (if null xs then "" else ", " ++ formatLists xs)
-
--- Function to format ingredients with commas between them
-formatIngredients :: [Ingredient] -> String
-formatIngredients [] = ""
-formatIngredients [x] = formatIngredient x
-formatIngredients (x:xs) = formatIngredient x ++ ", " ++ formatIngredients xs
-
--- Function to format sublists without nesting or duplication
-formatFlatSublists :: [IngredientList] -> String
-formatFlatSublists [] = ""
-formatFlatSublists (IngredientList name is [] : xs) = 
-    formatName name ++ ": {" ++ formatIngredients is ++ "}" 
-    ++ (if null xs then "" else ", " ++ formatFlatSublists xs)
-formatFlatSublists (IngredientList name is sublists : xs) = 
-    formatName name ++ ": {" ++ formatIngredients is 
-    ++ (if not (null sublists) then ", " ++ formatFlatSublists sublists else "") ++ "}" 
-    ++ (if null xs then "" else ", " ++ formatFlatSublists xs)
 
 -- Update a state according to a query
 stateTransition :: State -> Query -> Either String ([String], State)
@@ -179,14 +140,13 @@ stateTransition (State lists ings) (CreateEmptyList name) =
     else
         let newList = (name, [IngredientList name [] []])
             newLists = newList : lists
-        in Right (["Created ingredient list"], State newLists ings)
+        in Right (["Created empty ingredient list"], State newLists ings)
 
-stateTransition (State lists ings) (GetList name) =
-    case find (\(n, items) -> n == name) lists of
-        Just (n, items) -> 
-            let formattedList = formatIngredientList n items
-            in Right ([formattedList], State lists ings)
+stateTransition state@(State lists ings) (GetList name) = 
+    case lookup name lists of
+        Just list -> trace (show list) (Right (["Found list"], state))
         Nothing -> Left "List not found"
+    
 
 stateTransition (State lists ings) (Delete name) =
     case find (\(Ingredient n _ _) -> n == name) ings of
@@ -381,39 +341,67 @@ parseIngredient :: Parser Ingredient
 parseIngredient = and4' (\name _ qty unit -> Ingredient name qty unit) parseName (parseChar ':') parseQuantity (parseChar ' ' *> parseUnit)
 
 parseIngredientList :: Parser IngredientList
-parseIngredientList = and5' (\name _ _ ingredients _ -> IngredientList name ingredients []) parseName (parseChar ':') (parseChar '{') parseMoreIngredients (parseChar '}')
+parseIngredientList = and5' (\name _ _ (ingredients, nestedLists) _ -> IngredientList name ingredients nestedLists) parseName (parseChar ':') (parseChar '{') parseMoreIngredientsAndLists (parseChar '}')
 
-parseMoreIngredients :: Parser [Ingredient]
-parseMoreIngredients input = 
+parseMoreIngredientsAndLists :: Parser ([Ingredient], [IngredientList])
+parseMoreIngredientsAndLists input = 
     case parseIngredient input of
         Right (ing, rest) -> 
             case parseChar ',' rest of
                 Right (_, rest') -> 
-                    case parseMoreIngredients rest' of
-                        Right (ings, rest'') -> 
-                            Right (ing : ings, rest'')
+                    case parseMoreIngredientsAndLists rest' of
+                        Right ((ings, lists), rest'') -> 
+                            Right ((ing : ings, lists), rest'')
                         Left _ -> 
-                            Right ([ing], rest')
+                            Right (([ing], []), rest')
                 Left _ -> 
-                    Right ([ing], rest)
+                    Right (([ing], []), rest)
         Left _ -> 
-            Right ([], input)
+            case parseIngredientList input of
+                Right (list, rest) -> 
+                    case parseChar ',' rest of
+                        Right (_, rest') -> 
+                            case parseMoreIngredientsAndLists rest' of
+                                Right ((ings, lists), rest'') -> 
+                                    Right ((ings, list : lists), rest'')
+                                Left _ -> 
+                                    Right (([], [list]), rest')
+                        Left _ -> 
+                            Right (([], [list]), rest)
+                Left _ -> 
+                    Right (([], []), input)
 
-parseMoreLists :: Parser [IngredientList]
-parseMoreLists input = 
-    case parseIngredientList input of
-        Right (list, rest) -> 
-            case parseChar ',' rest of
-                Right (_, rest') -> 
-                    case parseMoreLists rest' of
-                        Right (lists, rest'') -> 
-                            Right (list : lists, rest'')
-                        Left _ -> 
-                            Right ([list], rest')
-                Left _ -> 
-                    Right ([list], rest)
-        Left _ -> 
-            Right ([], input)
+-- parseMoreIngredients :: Parser [Ingredient]
+-- parseMoreIngredients input = 
+--     case parseIngredient input of
+--         Right (ing, rest) -> 
+--             case parseChar ',' rest of
+--                 Right (_, rest') -> 
+--                     case parseMoreIngredients rest' of
+--                         Right (ings, rest'') -> 
+--                             Right (ing : ings, rest'')
+--                         Left _ -> 
+--                             Right ([ing], rest')
+--                 Left _ -> 
+--                     Right ([ing], rest)
+--         Left _ -> 
+--             Right ([], input)
+
+-- parseMoreLists :: Parser [IngredientList]
+-- parseMoreLists input = 
+--     case parseIngredientList input of
+--         Right (list, rest) -> 
+--             case parseChar ',' rest of
+--                 Right (_, rest') -> 
+--                     case parseMoreLists rest' of
+--                         Right (lists, rest'') -> 
+--                             Right (list : lists, rest'')
+--                         Left _ -> 
+--                             Right ([list], rest')
+--                 Left _ -> 
+--                     Right ([list], rest)
+--         Left _ -> 
+--             Right ([], input)
 
 
 parseQuery :: String -> Either String Query
