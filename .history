@@ -1,3 +1,6 @@
+find(banana: 3 full)
+get_list(food)
+create_list(food:{banana:3 full})
 create_list(food:{banana:3 full})
 create_list(food:{banana:3,full})
 create_list(food, food:{})

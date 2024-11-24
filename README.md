@@ -61,8 +61,13 @@ Tomato Pasta {
 
 create_list(pasta)
 create(Honey, 6, tbsp)
-update(Honey, Sugar, 15, g)
-select(Garlic: 3 cloves)
+find(banana: 3 full)
 delete(pasta)
+create_list(food: {banana: 3 full, meat:{beef: 100 g}})
+create_empty_list(meal)
+create(apple,12,cloves)
+add(apple,meal)
+get_list(meal)
+get(apple)
 
 ```

@@ -1,0 +1,72 @@
+>>> create_empty_list(meal)
+Created empty ingredient list
+>>> create(banana,3,full)
+Created ingredient
+>>> add(banana,meal)
+Added ingredient to list
+>>> get_list(meal)
+meal: {
+        banana: 3 Full
+
+}
+Found list
+>>> create(apple,12,cloves)
+Created ingredient
+>>> create_empty_list(veggies)
+Created empty ingredient list
+>>> add(apple,veggises)
+Added ingredient to list
+>>> find(banana: 3 full)
+Found in lists: meal
+>>> find(apple: 12 cloves)
+Found in lists: veggies
+>>> create_list(food: {banana: 3 full, meat:{beef: 100 g}})
+Created ingredient list
+>>> get_list(food)
+food: {
+        banana: 3 Full
+        meat: {
+                beef: 100 G
+        }
+
+}
+Found list
+>>> find(banana: 3 full)
+Found in lists: food, meal
+>>> add(veggies, food)
+Added ingredient to list
+>>> get_list(food)
+food: {
+        banana: 3 Full
+        veggies: {
+                apple: 12 Cloves
+        }
+        meat: {
+                beef: 100 G
+        }
+
+}
+Found list
+>>> find(apple: 12 cloves)
+Found in lists: food, veggies
+>>> get_list(veggies)
+veggies: {
+        apple: 12 Cloves
+
+}
+Found list
+>>> get(apple)
+apple: 12 Cloves
+>>> remove(apple,veggies)
+Removed ingredient
+>>> get_list(veggies)
+veggies: {
+
+}
+Found list
+>>> get(apple)
+apple: 12 Cloves
+>>> delete(apple)
+Deleted ingredient
+>>> get(apple)
+ERROR:Ingredient not found
