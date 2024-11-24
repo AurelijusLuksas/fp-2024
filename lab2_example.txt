@@ -14,7 +14,7 @@ Found list
 Created ingredient
 >>> create_empty_list(veggies)
 Created empty ingredient list
->>> add(apple,veggises)
+>>> add(apple,veggies)
 Added ingredient to list
 >>> find(banana: 3 full)
 Found in lists: meal
