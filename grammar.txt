@@ -15,6 +15,7 @@
 <add> ::= "add (" <name> ", " <list_name> ")"
 <remove> ::= "remove (" <name> ", " <list_name> ")" 
 <get> ::= "get (" <name> ")" 
-<create_list> ::= "create_list (" <name> ")"
+<create_empty_list> ::= "create_list (" <name> ")"
+<create_list> ::=
 <get_list> ::= "get_list (" <name> ")" 
 <delete> ::= "delete (" <name> ")"  

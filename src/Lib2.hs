@@ -18,7 +18,7 @@ module Lib2 (
     parseIngredient,
     parseIngredientList,
     parseCreate,
-    parseCreateList,
+    parseCreateEmptyList,
     parseAdd,
     parseRemove,
     parseGet,
@@ -28,8 +28,6 @@ module Lib2 (
 
 import Data.Char (isSpace, isDigit, isLetter)
 import Data.List (isPrefixOf, find)
-import Debug.Trace
-import GHC.Base (TrName)
 
 -- Define the Name data type
 data Name = NumberName Int | WordName String | StringName String
@@ -47,7 +45,7 @@ data Ingredient = Ingredient Name Quantity Unit
     deriving (Show, Eq)
 
 -- Define the IngredientList data type
-data IngredientList = IngredientList Name [Ingredient] [IngredientList]
+data IngredientList = IngredientList Name [Ingredient] [IngredientList] 
     deriving (Show, Eq)
 
 -- Define the Query data type
@@ -56,7 +54,8 @@ data Query
     | Add Name Name
     | Remove Name Name
     | Get Name
-    | CreateList Name
+    | CreateList IngredientList
+    | CreateEmptyList Name
     | GetList Name
     | Delete Name
     | DeleteList Name
@@ -166,7 +165,15 @@ stateTransition (State lists ings) (Get name) =
         Just (Ingredient (WordName actualName) (Quantity qty) unit) -> Right ([actualName ++ ": " ++ show qty ++ " " ++ show unit], State lists ings)
         Nothing -> Left "Ingredient not found"
 
-stateTransition (State lists ings) (CreateList name) =
+stateTransition (State lists ings) (CreateList (IngredientList name items sublists)) =
+    if any (\(n, _) -> n == name) lists
+    then Left "List already exists"
+    else
+        let newList = (name, [IngredientList name items sublists])
+            newLists = newList : lists
+        in Right (["Created ingredient list"], State newLists ings)
+
+stateTransition (State lists ings) (CreateEmptyList name) =
     if any (\(n, _) -> n == name) lists
     then Left "List already exists"
     else
@@ -206,6 +213,18 @@ and2' f a b input =
                 Left e2 -> Left e2
         Left e1 -> Left e1
 
+and3' :: (a -> b -> c -> d) -> Parser a -> Parser b -> Parser c -> Parser d
+and3' f a b c input =
+    case a input of
+        Right (v1, r1) ->
+            case b r1 of
+                Right (v2, r2) ->
+                    case c r2 of
+                        Right (v3, r3) -> Right (f v1 v2 v3, r3)
+                        Left e3 -> Left e3
+                Left e2 -> Left e2
+        Left e1 -> Left e1
+
 and4' :: (a -> b -> c -> d -> e) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e
 and4' f a b c d input =
     case a input of
@@ -233,6 +252,27 @@ and5' f a b c d e input =
                                 Right (v4, r4) ->
                                     case e r4 of
                                         Right (v5, r5) -> Right (f v1 v2 v3 v4 v5, r5)
+                                        Left e5 -> Left e5
+                                Left e4 -> Left e4
+                        Left e3 -> Left e3
+                Left e2 -> Left e2
+        Left e1 -> Left e1
+
+and6' :: (a -> b -> c -> d -> e -> f -> g) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f -> Parser g
+and6' g a b c d e f input =
+    case a input of
+        Right (v1, r1) ->
+            case b r1 of
+                Right (v2, r2) ->
+                    case c r2 of
+                        Right (v3, r3) ->
+                            case d r3 of
+                                Right (v4, r4) ->
+                                    case e r4 of
+                                        Right (v5, r5) ->
+                                            case f r5 of
+                                                Right (v6, r6) -> Right (g v1 v2 v3 v4 v5 v6, r6)
+                                                Left e6 -> Left e6
                                         Left e5 -> Left e5
                                 Left e4 -> Left e4
                         Left e3 -> Left e3
@@ -306,9 +346,7 @@ parseName input =
         trimmedInput = skipWhitespace input
     in case parseWord trimmedInput of
         Right (word, rest) -> Right (WordName word, rest)
-        Left _ -> case parseNumber input of
-            Right (num, rest) -> Right (NumberName num, rest)
-            Left err -> Left err
+        Left err -> error err
 
 parseQuantity :: Parser Quantity
 parseQuantity input = 
@@ -343,22 +381,38 @@ parseIngredient :: Parser Ingredient
 parseIngredient = and4' (\name _ qty unit -> Ingredient name qty unit) parseName (parseChar ':') parseQuantity (parseChar ' ' *> parseUnit)
 
 parseIngredientList :: Parser IngredientList
-parseIngredientList = and5' (\name _ _ ingredients _ -> IngredientList name ingredients []) parseName (parseChar ':') (parseChar '{') parseIngredients (parseChar '}')
+parseIngredientList = and5' (\name _ _ ingredients _ -> IngredientList name ingredients []) parseName (parseChar ':') (parseChar '{') parseMoreIngredients (parseChar '}')
 
-parseIngredients :: Parser [Ingredient]
-parseIngredients input = trace ("parseIngredients input: " ++ show input) $
+parseMoreIngredients :: Parser [Ingredient]
+parseMoreIngredients input = 
     case parseIngredient input of
-        Right (ing, rest) -> trace ("Parsed ingredient: " ++ show ing ++ ", rest: " ++ show rest) $
+        Right (ing, rest) -> 
             case parseChar ',' rest of
-                Right (_, rest') -> trace ("Found comma, rest': " ++ show rest') $
-                    case parseIngredients rest' of
-                        Right (ings, rest'') -> trace ("Parsed more ingredients: " ++ show ings ++ ", rest'': " ++ show rest'') $
+                Right (_, rest') -> 
+                    case parseMoreIngredients rest' of
+                        Right (ings, rest'') -> 
                             Right (ing : ings, rest'')
-                        Left _ -> trace ("Failed to parse more ingredients, returning: " ++ show [ing] ++ ", rest': " ++ show rest') $
+                        Left _ -> 
                             Right ([ing], rest')
-                Left _ -> trace ("No comma found, returning: " ++ show [ing] ++ ", rest: " ++ show rest) $
+                Left _ -> 
                     Right ([ing], rest)
-        Left _ -> trace ("Failed to parse ingredient, returning empty list, input: " ++ show input) $
+        Left _ -> 
+            Right ([], input)
+
+parseMoreLists :: Parser [IngredientList]
+parseMoreLists input = 
+    case parseIngredientList input of
+        Right (list, rest) -> 
+            case parseChar ',' rest of
+                Right (_, rest') -> 
+                    case parseMoreLists rest' of
+                        Right (lists, rest'') -> 
+                            Right (list : lists, rest'')
+                        Left _ -> 
+                            Right ([list], rest')
+                Left _ -> 
+                    Right ([list], rest)
+        Left _ -> 
             Right ([], input)
 
 
@@ -372,15 +426,17 @@ parseQuery input =
                 Right (query, _) -> Right query
                 Left err3 -> case parseGet input of
                     Right (query, _) -> Right query
-                    Left err4 -> case parseCreateList input of
+                    Left err4 -> case parseCreateEmptyList input of
                         Right (query, _) -> Right query
                         Left err5 -> case parseDelete input of
                             Right (query, _) -> Right query
                             Left err6 -> case parseGetList input of
                                 Right (query, _) -> Right query
-                                Left err7 -> Left $ " Parse errors: " ++ err1 ++ ", " ++ err2 ++ ", "
-                                    ++ err3 ++ ", " ++ err4 ++ ", " ++ err5 ++ ", " ++ err6 ++ ", "
-                                    ++ err7
+                                Left err7 -> (case parseCreateList input of
+                                    Right (query, _) -> Right query
+                                    Left err8 -> Left $ " Parse errors: " ++ err1 ++ ", " ++ err2 ++ ", "
+                                        ++ err3 ++ ", " ++ err4 ++ ", " ++ err5 ++ ", " ++ err6 ++ ", "
+                                        ++ err7 ++ ", " ++ err8)
 
 -- <create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
 parseCreate :: Parser Query
@@ -403,9 +459,15 @@ parseGet input = case and2' (\_ name -> Get name) (string "get(") (parseName <* 
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 
--- <create_list> ::= "create_list (" <name> ")"
+-- <create_list> ::= "create_list (" <ingredients_list> ")"
 parseCreateList :: Parser Query
-parseCreateList input = case and2' (\_ name -> CreateList name) (string "create_list(") (parseName <* parseChar ')') input of
+parseCreateList input = case and3' (\_ ingredientList _ -> CreateList ingredientList) (string "create_list(") parseIngredientList (parseChar ')') input of
+    Right (query, rest) -> Right (query, rest)
+    Left err -> Left err
+
+-- <create_empty_list> ::= "create_list (" <name> ")"
+parseCreateEmptyList :: Parser Query
+parseCreateEmptyList input = case and2' (\_ name -> CreateEmptyList name) (string "create_empty_list(") (parseName <* parseChar ')') input of
     Right (query, rest) -> Right (query, rest)
     Left err -> Left err
 

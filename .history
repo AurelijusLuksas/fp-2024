@@ -1,3 +1,22 @@
+create_list(food:{banana:3 full})
+create_list(food:{banana:3,full})
+create_list(food, food:{})
+create_list(food, food:{)
+create_list(food, food:)
+create_list(food, food:{banana,3,full)
+create_list(food, food:{banana,3,full})
+create_list(food, lal: {banana: 3 full})
+create_list(food, lal: banana 3 full)
+create_list(food, lal: banana 3 full})
+create_list(food, lal: banana 3 full})
+create_list(food, {lal: banana 3 full})
+create_list(food, {banana 3 full})
+create_list(food, {banana})
+create_list(food, {})
+create_list(food, { b})
+create_list(food, { banana:3,full})
+create_list(food, banana:3,full})
+create_list(food, {banana:3,full})
 m
 asdl
 stop

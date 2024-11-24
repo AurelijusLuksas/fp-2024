@@ -21,7 +21,7 @@ import Lib2 qualified (
     parseIngredient,
     parseIngredientList,
     parseCreate,
-    parseCreateList,
+    parseCreateEmptyList,
     parseAdd,
     parseRemove,
     parseGet,
@@ -220,10 +220,10 @@ parserTests = testGroup "Parser Helper Functions"
       Lib2.parseGet "get(123)" @?= Right (Lib2.Get (Lib2.NumberName 123), ")")
   
   , testCase "parseCreateList - valid create list query" $
-      Lib2.parseCreateList "create_list(fruits)" @?= Right (Lib2.CreateList (Lib2.WordName "fruits"), ")")
+      Lib2.parseCreateEmptyList "create_list(fruits)" @?= Right (Lib2.CreateList (Lib2.WordName "fruits"), ")")
   
   , testCase "parseCreateList - invalid create list query" $
-      Lib2.parseCreateList "create_list(123)" @?= Right (Lib2.CreateList (Lib2.NumberName 123), ")")
+      Lib2.parseCreateEmptyList "create_list(123)" @?= Right (Lib2.CreateList (Lib2.NumberName 123), ")")
   
   , testCase "parseGetList - valid get list query" $
       Lib2.parseGetList "get_list(fruits)" @?= Right (Lib2.GetList (Lib2.WordName "fruits"), ")")
