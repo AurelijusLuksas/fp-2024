@@ -383,15 +383,15 @@ parseIngredient :: Parser Ingredient
 parseIngredient = and4' (\name _ qty unit -> Ingredient name qty unit) parseName (parseChar ':') parseQuantity (parseChar ' ' *> parseUnit)
 
 parseIngredientList :: Parser IngredientList
-parseIngredientList = and5' (\name _ _ (ingredients, nestedLists) _ -> IngredientList name ingredients nestedLists) parseName (parseChar ':') (parseChar '{') parseMoreIngredientsAndLists (parseChar '}')
+parseIngredientList = and5' (\name _ _ (ingredients, nestedLists) _ -> IngredientList name ingredients nestedLists) parseName (parseChar ':') (parseChar '{') parseMoreItems (parseChar '}')
 
-parseMoreIngredientsAndLists :: Parser ([Ingredient], [IngredientList])
-parseMoreIngredientsAndLists input = 
+parseMoreItems :: Parser ([Ingredient], [IngredientList])
+parseMoreItems input = 
     case parseIngredient input of
         Right (ing, rest) -> 
             case parseChar ',' rest of
                 Right (_, rest') -> 
-                    case parseMoreIngredientsAndLists rest' of
+                    case parseMoreItems rest' of
                         Right ((ings, lists), rest'') -> 
                             Right ((ing : ings, lists), rest'')
                         Left _ -> 
@@ -403,7 +403,7 @@ parseMoreIngredientsAndLists input =
                 Right (list, rest) -> 
                     case parseChar ',' rest of
                         Right (_, rest') -> 
-                            case parseMoreIngredientsAndLists rest' of
+                            case parseMoreItems rest' of
                                 Right ((ings, lists), rest'') -> 
                                     Right ((ings, list : lists), rest'')
                                 Left _ -> 

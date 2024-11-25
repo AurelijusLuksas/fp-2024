@@ -15,10 +15,9 @@ Ingredient list maker.
 
 # BNF
 ``` 
-<ingredient_list> ::= <name> ": {" <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> "}" | <name> ": {" <more_ingredient_lists> <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> <more_ingredients> "}"
-<more_ingredients> ::= <ingredient> | <ingredient> <more_ingredients>
-<more_ingredient_lists> ::= <ingredient_list> | <ingredient_list> <more_ingredient_lists>
-<ingredient> ::= <name> ": " <quantity> " " <unit> " "
+<ingredient_list> ::= <name> ": {" <more_items> "}" 
+<more_items> ::= <ingredient> ", " <more_items> | <ingredient_list> ", " <more_items> | <ingredient> | <ingredient_list>
+<ingredient> ::= <name> ": " <quantity> " " <unit>
 <quantity> ::= <number>
 <unit> ::= "cup" | "cups" | "tbsp" | "tsp" | "oz" | "lb" | "g" | "kg" | "ml" | "l" | "pinch" | "cloves" | "full" | "half"
 <name> ::= <string> | <string> <name>
@@ -27,15 +26,16 @@ Ingredient list maker.
 <string> ::= <letter> | <letter> <string>
 <letter> ::= "a" | "b" | "c" | ... | "y" | "z" | "A" | "B" | "C" | ... | "Y" | "Z" | " "
 
-<commands> ::= <create> | <add> | <remove> | <get> | <select> | <update> | <create_list> | <delete>
-<create> ::= "create(" <name> ", " <quantity> ", " <unit> ")"
-<add> ::= "add(" <name> ")"
-<remove> ::= "remove(" <name> ")" 
-<get> ::= "get(" <name> ")" 
-<select> ::= "select(" <ingredient> ")" | "select (" <name> ")"
-<update> ::= "update(" <name> ", " <name> ", " <quantity> ", " <unit> ")" 
-<create_list> ::= "create_list(" <name> ")"
-<delete> ::= "delete(" <name> ")"
+<commands> ::= <create> | <add> | <remove> | <get>  | <create_list> | <get_list> | <delete> | create_empty_list> | <find>
+<create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
+<add> ::= "add (" <name> ", " <name> ")"
+<remove> ::= "remove (" <name> ", " <name> ")" 
+<get> ::= "get (" <name> ")" 
+<create_list> ::= "create_list (" <ingredient_list> ")"
+create_empty_list ::= "create_empty_list (" <name> ")"
+find::= "find(" <ingredient> ")" 
+<get_list> ::= "get_list (" <name> ")" 
+<delete> ::= "delete (" <name> ")"
 ```
 
 # Example
@@ -64,6 +64,7 @@ create(Honey, 6, tbsp)
 find(banana: 3 full)
 delete(pasta)
 create_list(food: {banana: 3 full, meat:{beef: 100 g}})
+remove(banana,food)
 create_empty_list(meal)
 create(apple,12,cloves)
 add(apple,meal)

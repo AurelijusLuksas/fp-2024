@@ -1,7 +1,6 @@
-<ingredient_list> ::= <name> ": {" <more_ingredients> "}" | <name> ": {" <more_ingredients> <more_ingredient_lists> "}" | <name> ": {" <more_ingredient_lists> <more_ingredients> "}"
-<more_ingredient_lists> ::= <ingredient_list> | <ingredient_list> <more_ingredient_lists>
-<more_ingredients> ::= <ingredient> | <ingredient> <more_ingredients>
-<ingredient> ::= <name> ": " <quantity> " " <unit> " "
+<ingredient_list> ::= <name> ": {" <more_items> "}" 
+<more_items> ::= <ingredient> ", " <more_items> | <ingredient_list> ", " <more_items> | <ingredient> | <ingredient_list>
+<ingredient> ::= <name> ": " <quantity> " " <unit>
 <quantity> ::= <number>
 <unit> ::= "cup" | "cups" | "tbsp" | "tsp" | "oz" | "lb" | "g" | "kg" | "ml" | "l" | "pinch" | "cloves" | "full" | "half"
 <name> ::= <string> | <string> <name>
@@ -20,3 +19,5 @@ create_empty_list ::= "create_empty_list (" <name> ")"
 find::= "find(" <ingredient> ")" 
 <get_list> ::= "get_list (" <name> ")" 
 <delete> ::= "delete (" <name> ")"
+
+food: {banana: 3 full, meat: {beef: 100 g}}
