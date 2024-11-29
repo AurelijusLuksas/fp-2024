@@ -10,6 +10,26 @@
   (major1) == 0 && (major2) <  1 || \
   (major1) == 0 && (major2) == 1 && (minor) <= 0)
 #endif /* MIN_VERSION_fp2024 */
+/* package QuickCheck-2.15.0.1 */
+#ifndef VERSION_QuickCheck
+#define VERSION_QuickCheck "2.15.0.1"
+#endif /* VERSION_QuickCheck */
+#ifndef MIN_VERSION_QuickCheck
+#define MIN_VERSION_QuickCheck(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  15 || \
+  (major1) == 2 && (major2) == 15 && (minor) <= 0)
+#endif /* MIN_VERSION_QuickCheck */
+/* package async-2.2.5 */
+#ifndef VERSION_async
+#define VERSION_async "2.2.5"
+#endif /* VERSION_async */
+#ifndef MIN_VERSION_async
+#define MIN_VERSION_async(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  2 || \
+  (major1) == 2 && (major2) == 2 && (minor) <= 5)
+#endif /* MIN_VERSION_async */
 /* package base-4.17.2.1 */
 #ifndef VERSION_base
 #define VERSION_base "4.17.2.1"
@@ -20,6 +40,56 @@
   (major1) == 4 && (major2) <  17 || \
   (major1) == 4 && (major2) == 17 && (minor) <= 2)
 #endif /* MIN_VERSION_base */
+/* package free-5.2 */
+#ifndef VERSION_free
+#define VERSION_free "5.2"
+#endif /* VERSION_free */
+#ifndef MIN_VERSION_free
+#define MIN_VERSION_free(major1,major2,minor) (\
+  (major1) <  5 || \
+  (major1) == 5 && (major2) <  2 || \
+  (major1) == 5 && (major2) == 2 && (minor) <= 0)
+#endif /* MIN_VERSION_free */
+/* package random-1.2.1.2 */
+#ifndef VERSION_random
+#define VERSION_random "1.2.1.2"
+#endif /* VERSION_random */
+#ifndef MIN_VERSION_random
+#define MIN_VERSION_random(major1,major2,minor) (\
+  (major1) <  1 || \
+  (major1) == 1 && (major2) <  2 || \
+  (major1) == 1 && (major2) == 2 && (minor) <= 1)
+#endif /* MIN_VERSION_random */
+/* package stm-2.5.1.0 */
+#ifndef VERSION_stm
+#define VERSION_stm "2.5.1.0"
+#endif /* VERSION_stm */
+#ifndef MIN_VERSION_stm
+#define MIN_VERSION_stm(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  5 || \
+  (major1) == 2 && (major2) == 5 && (minor) <= 1)
+#endif /* MIN_VERSION_stm */
+/* package strict-0.5.1 */
+#ifndef VERSION_strict
+#define VERSION_strict "0.5.1"
+#endif /* VERSION_strict */
+#ifndef MIN_VERSION_strict
+#define MIN_VERSION_strict(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  5 || \
+  (major1) == 0 && (major2) == 5 && (minor) <= 1)
+#endif /* MIN_VERSION_strict */
+/* package transformers-0.5.6.2 */
+#ifndef VERSION_transformers
+#define VERSION_transformers "0.5.6.2"
+#endif /* VERSION_transformers */
+#ifndef MIN_VERSION_transformers
+#define MIN_VERSION_transformers(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  5 || \
+  (major1) == 0 && (major2) == 5 && (minor) <= 6)
+#endif /* MIN_VERSION_transformers */
 
 /* tool gcc-13 */
 #ifndef TOOL_VERSION_gcc

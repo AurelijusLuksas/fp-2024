@@ -1,8 +1,0 @@
-Test suite fp2024-test: RUNNING...
-Tests
-  Lib1 tests
-    List of completions is not empty: OK
-
-All 1 tests passed (0.01s)
-Test suite fp2024-test: PASS
-Test suite logged to: /workspaces/fp-2024/dist-newstyle/build/x86_64-linux/ghc-9.4.8/fp2024-0.1.0.0/t/fp2024-test/test/fp2024-0.1.0.0-fp2024-test.log

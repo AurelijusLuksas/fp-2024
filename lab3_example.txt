@@ -22,8 +22,9 @@ State updated
 >>> save
 State saved
 >>> 
-[4]+  Stopped                 stack run fp2024-three
+[4]+  Stopped                 
 
+stack run fp2024-three
 Welcome! Press [TAB] for auto completion, type ':paste' for multiline input
 >>> load
 Loaded state:

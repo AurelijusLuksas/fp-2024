@@ -2,6 +2,7 @@
 module Lib3
     ( stateTransition,
     StorageOp (..),
+    Statements (..),
     storageOpLoop,
     parseCommand,
     parseStatements,

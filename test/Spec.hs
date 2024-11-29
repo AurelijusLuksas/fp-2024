@@ -3,11 +3,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import Test.Tasty (TestTree, defaultMain, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.HUnit (testCase, (@?=), assert)
 import Test.Tasty.QuickCheck as QC
 import Control.Concurrent (newChan, Chan)
 import Control.Monad.IO.Class (liftIO)
+import Control.Concurrent.STM (atomically, newTVar, readTVar)
 import Control.Monad (liftM3)
+import Debug.Trace (trace)
+import Test.QuickCheck.Monadic (monadicIO, run)
+import qualified Test.QuickCheck.Monadic as QCM
 
 import Lib1 qualified
 import Lib2 qualified (
@@ -38,6 +42,7 @@ import Lib2 qualified (
     )
 import Lib3 qualified (
     Command(..),
+    Statements(..),
     stateTransition,
     parseCommand,
     parseStatements,
@@ -46,6 +51,48 @@ import Lib3 qualified (
     )
 
 import Test.Tasty.QuickCheck (Testable(property))
+
+newtype ArbitraryName = ArbitraryName Lib2.Name deriving (Show)
+
+-- Define Arbitrary instance for Lib3.Command
+instance Arbitrary Lib3.Command where
+  arbitrary = oneof [ arbitraryStatementCommand
+                    , return Lib3.LoadCommand
+                    , return Lib3.SaveCommand
+                    ]
+
+arbitraryStatementCommand :: Gen Lib3.Command
+arbitraryStatementCommand = do
+  query <- arbitrary
+  return $ Lib3.StatementCommand (Lib3.Single query)
+
+instance Arbitrary Lib2.Query where
+  arbitrary = oneof [ Lib2.Create <$> arbitrary <*> arbitrary <*> arbitrary
+                    , Lib2.Add <$> arbitrary <*> arbitrary
+                    , Lib2.Remove <$> arbitrary <*> arbitrary
+                    , Lib2.Get <$> arbitrary
+                    , Lib2.CreateList <$> arbitrary
+                    , Lib2.CreateEmptyList <$> arbitrary
+                    , Lib2.GetList <$> arbitrary
+                    , Lib2.Delete <$> arbitrary
+                    , Lib2.Find <$> arbitrary
+                    ]
+
+instance Arbitrary ArbitraryName where
+  arbitrary = ArbitraryName <$> (Lib2.WordName <$> validWordName)
+    where
+      validWordName = (:) <$> elements ['a'..'z'] <*> listOf (elements ['a'..'z'])
+
+instance Arbitrary Lib2.Name where
+  arbitrary = oneof [Lib2.WordName <$> validWordName]
+    where
+      validWordName = (:) <$> elements ['a'..'z'] <*> listOf (elements ['a'..'z'])
+
+instance Arbitrary Lib2.Quantity where
+    arbitrary = Lib2.Quantity <$> (getNonNegative <$> arbitrary)
+
+instance Arbitrary Lib2.Unit where
+    arbitrary = oneof [return Lib2.Cup, return Lib2.G, return Lib2.Cloves, return Lib2.Full]
 
 instance Arbitrary Lib2.Ingredient where
   arbitrary = liftM3 Lib2.Ingredient arbitrary arbitrary arbitrary
@@ -63,7 +110,7 @@ propertyTests = testGroup "Lib3 Property Tests"
   [ QC.testProperty "parseCommand should parse valid commands" prop_parseCommand
   , QC.testProperty "parseStatements should parse valid statements" prop_parseStatements
   , QC.testProperty "marshallState and renderStatements should be inverses" prop_marshallRenderInverse
---   , QC.testProperty "stateTransition should update state correctly" prop_stateTransition
+  , QC.testProperty "stateTransition should update state correctly" prop_stateTransition
   ]
 
   -- Property: parseCommand should parse valid commands
@@ -81,26 +128,30 @@ prop_parseStatements input =
     Right _ -> True
 
 -- Property: marshallState and renderStatements should be inverses
+
 prop_marshallRenderInverse :: Lib2.State -> Bool
 prop_marshallRenderInverse state =
   let statements = Lib3.marshallState state
       rendered = Lib3.renderStatements statements
       parsed = Lib3.parseStatements rendered
-  in case parsed of
+  in trace ("Original State: " ++ show state ++
+            "\nStatements: " ++ show statements ++
+            "\nRendered: " ++ rendered ++
+            "\nParsed: " ++ show parsed) $
+     case parsed of
        Left _ -> False
        Right (parsedStatements, _) -> statements == parsedStatements
 
 -- Property: stateTransition should update state correctly
--- prop_stateTransition :: Lib2.State -> Lib3.Command -> Bool
--- prop_stateTransition initialState command = ioProperty $ do
---   stateVar <- newTVarIO initialState
---   ioChan <- newChan
---   result <- Lib3.stateTransition stateVar command ioChan
---   case result of
---     Left _ -> return True
---     Right _ -> do
---       newState <- readTVarIO stateVar
---       return $ newState /= initialState
+prop_stateTransition :: Lib2.State -> Lib3.Command -> Property
+prop_stateTransition initialState command = monadicIO $ do
+  stateVar <- run $ atomically $ newTVar initialState
+  ioChan <- run newChan
+  result <- run $ Lib3.stateTransition stateVar command ioChan
+  finalState <- run $ atomically $ readTVar stateVar
+  case result of
+    Left _ -> QCM.assert True -- If there's an error, we assume the state hasn't changed
+    Right _ -> QCM.assert (finalState /= initialState) -- If successful, the state should have changed
 
 
 main :: IO ()
@@ -154,7 +205,7 @@ stateTransitionTests = testGroup "State Transition"
 
  , testCase "stateTransition - Add existing ingredient" $
       let state = Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
-      in Lib2.stateTransition state (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Added ingredient to list"], Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup])
+      in Lib2.stateTransition state (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Added ingredient or list to list"], Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup])
 
   , testCase "stateTransition - Add non-existing ingredient" $
       let state = Lib2.State [] [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 1) Lib2.Cup]
