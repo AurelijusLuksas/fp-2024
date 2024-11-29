@@ -1,0 +1,7 @@
+BEGIN
+create(orange, 12, cloves)
+create(apple, 3, full)
+create_empty_list(food)
+add(orange, food)
+add(apple, food)
+END

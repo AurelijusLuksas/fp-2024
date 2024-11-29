@@ -1,3 +1,13 @@
+<batch> ::= 'BEGIN' <commands_list> 'END'
+
+<commands_list> ::= <commands> ';' <commands_list> | <commands>
+<compound_query> ::= <commands> ';' <commands>
+
+<load_commands> ::= 'load'
+<save_commands> ::= 'save'
+
+
+
 <ingredient_list> ::= <name> ": {" <more_items> "}" 
 <more_items> ::= <ingredient> ", " <more_items> | <ingredient_list> ", " <more_items> | <ingredient> | <ingredient_list>
 <ingredient> ::= <name> ": " <quantity> " " <unit>
@@ -9,15 +19,24 @@
 <string> ::= <letter> | <letter> <string>
 <letter> ::= "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z" | " "
 
-<commands> ::= <create> | <add> | <remove> | <get>  | <create_list> | <get_list> | <delete> | create_empty_list> | <find>
+<commands> ::= <create> 
+            | <add> 
+            | <remove> 
+            | <get>  
+            | <create_list> 
+            | <get_list> 
+            | <delete> 
+            | create_empty_list> 
+            | <find> 
+            | <load_commands> 
+            | <save_commands>
+
 <create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
 <add> ::= "add (" <name> ", " <name> ")"
 <remove> ::= "remove (" <name> ", " <name> ")" 
 <get> ::= "get (" <name> ")" 
 <create_list> ::= "create_list (" <ingredient_list> ")"
 create_empty_list ::= "create_empty_list (" <name> ")"
-find::= "find(" <ingredient> ")" 
+find ::= "find(" <ingredient> ")" 
 <get_list> ::= "get_list (" <name> ")" 
 <delete> ::= "delete (" <name> ")"
-
-food: {banana: 3 full, meat: {beef: 100 g}}
