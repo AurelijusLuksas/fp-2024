@@ -6,7 +6,8 @@ module Lib3
     parseCommand,
     parseStatements,
     marshallState,
-    renderStatements
+    renderStatements,
+    Command(..),
     ) where
 
 import Control.Concurrent ( Chan, readChan, writeChan, newChan )
@@ -234,6 +235,7 @@ loadState ioChan = do
     resultChan <- newChan
     writeChan ioChan (Load resultChan)
     result <- readChan resultChan
+    putStrLn $ "Loaded state:\n" ++ result -- Print the loaded state to the console for debugging
     case parseStatements result of
         Left err -> return $ Left err
         Right (stmts, _) -> case executeStatements Lib2.emptyState stmts of
@@ -244,6 +246,7 @@ loadState ioChan = do
 saveState :: Lib2.State -> Chan StorageOp -> IO (Either String ())
 saveState state ioChan = do
     let content = renderStatements (marshallState state)
+    -- putStrLn $ "Saving state:\n" ++ content -- Print the state to the console for debugging
     resultChan <- newChan
     writeChan ioChan (Save content resultChan)
     readChan resultChan

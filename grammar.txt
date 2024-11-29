@@ -1,7 +1,6 @@
 <batch> ::= 'BEGIN' <commands_list> 'END'
 
 <commands_list> ::= <commands> ';' <commands_list> | <commands>
-<compound_query> ::= <commands> ';' <commands>
 
 <load_commands> ::= 'load'
 <save_commands> ::= 'save'

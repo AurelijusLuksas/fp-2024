@@ -9,12 +9,17 @@ Ingredient list maker.
  - remove (ingredient | ingredient_list) - Removes an ingredient or ingredient list from the selected list.
  - get (ingredient | ingredient_list) - Returns an ingredient or igredient list.
  - select (ingredient | ingredient_list) - Selects a list or ingredient to work with.
- - update (ingredient | ingredient_list) (updated_ingredient | updated_ingredient_list) - Updates the selected ingredient or list.
  - create_list (name) - Creates a new list.
  - delete (ingredient | ingredient_list) - Deletes already existing list or ingredient.
 
 # BNF
 ``` 
+<batch> ::= 'BEGIN' <commands_list> 'END'
+<commands_list> ::= <commands> ';' <commands_list> | <commands>
+
+<load_commands> ::= 'load'
+<save_commands> ::= 'save'
+
 <ingredient_list> ::= <name> ": {" <more_items> "}" 
 <more_items> ::= <ingredient> ", " <more_items> | <ingredient_list> ", " <more_items> | <ingredient> | <ingredient_list>
 <ingredient> ::= <name> ": " <quantity> " " <unit>

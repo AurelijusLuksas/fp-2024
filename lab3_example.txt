@@ -1,0 +1,42 @@
+Welcome! Press [TAB] for auto completion, type ':paste' for multiline input
+>>> :paste
+-- Entering multi-line mode. Press <Ctrl-D> to finish.
+| BEGIN
+| create(b, 4, g);
+| create(h, 5, g);
+| create(g, 1, kg);
+| create(a, 9, g);
+| create_empty_list(food);
+| add(h, food);
+| create(ha, 15, full);
+| create(v, 8, full);
+| create_empty_list(meal);
+| add(g, meal);
+| remove(h,food);
+| delete(b);
+| add(a, food);
+| add(ha,meal);
+| END
+| 
+State updated
+>>> save
+State saved
+>>> 
+[4]+  Stopped                 stack run fp2024-three
+
+Welcome! Press [TAB] for auto completion, type ':paste' for multiline input
+>>> load
+Loaded state:
+BEGIN
+create(v, 8, full)
+create(ha, 15, full)
+create(a, 9, g)
+create(g, 1, kg)
+create(h, 5, g)
+create_empty_list(meal)
+add(ha, meal)
+add(g, meal)
+create_empty_list(food)
+add(a, food)
+END
+State loaded

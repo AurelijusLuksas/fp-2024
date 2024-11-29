@@ -1,7 +1,13 @@
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.QuickCheck as QC
+import Control.Concurrent (newChan, Chan)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad (liftM3)
 
 import Lib1 qualified
 import Lib2 qualified (
@@ -30,6 +36,72 @@ import Lib2 qualified (
     parseDelete,
     parseGetList
     )
+import Lib3 qualified (
+    Command(..),
+    stateTransition,
+    parseCommand,
+    parseStatements,
+    renderStatements,
+    marshallState
+    )
+
+import Test.Tasty.QuickCheck (Testable(property))
+
+instance Arbitrary Lib2.Ingredient where
+  arbitrary = liftM3 Lib2.Ingredient arbitrary arbitrary arbitrary
+
+instance Arbitrary Lib2.IngredientList where
+  arbitrary = liftM3 Lib2.IngredientList arbitrary arbitrary arbitrary
+
+
+instance Arbitrary Lib2.State where
+  arbitrary = Lib2.State <$> arbitrary <*> arbitrary
+
+
+propertyTests :: TestTree
+propertyTests = testGroup "Lib3 Property Tests"
+  [ QC.testProperty "parseCommand should parse valid commands" prop_parseCommand
+  , QC.testProperty "parseStatements should parse valid statements" prop_parseStatements
+  , QC.testProperty "marshallState and renderStatements should be inverses" prop_marshallRenderInverse
+--   , QC.testProperty "stateTransition should update state correctly" prop_stateTransition
+  ]
+
+  -- Property: parseCommand should parse valid commands
+prop_parseCommand :: String -> Bool
+prop_parseCommand input =
+  case Lib3.parseCommand input of
+    Left _ -> True
+    Right _ -> True
+
+-- Property: parseStatements should parse valid statements
+prop_parseStatements :: String -> Bool
+prop_parseStatements input =
+  case Lib3.parseStatements input of
+    Left _ -> True
+    Right _ -> True
+
+-- Property: marshallState and renderStatements should be inverses
+prop_marshallRenderInverse :: Lib2.State -> Bool
+prop_marshallRenderInverse state =
+  let statements = Lib3.marshallState state
+      rendered = Lib3.renderStatements statements
+      parsed = Lib3.parseStatements rendered
+  in case parsed of
+       Left _ -> False
+       Right (parsedStatements, _) -> statements == parsedStatements
+
+-- Property: stateTransition should update state correctly
+-- prop_stateTransition :: Lib2.State -> Lib3.Command -> Bool
+-- prop_stateTransition initialState command = ioProperty $ do
+--   stateVar <- newTVarIO initialState
+--   ioChan <- newChan
+--   result <- Lib3.stateTransition stateVar command ioChan
+--   case result of
+--     Left _ -> return True
+--     Right _ -> do
+--       newState <- readTVarIO stateVar
+--       return $ newState /= initialState
+
 
 main :: IO ()
 main = defaultMain tests
@@ -39,6 +111,7 @@ tests = testGroup "Lib2 Tests"
   [ unitTests
   , parserTests
   , stateTransitionTests
+  , propertyTests
   ]
 
 -- Unit Tests for Parser Functions

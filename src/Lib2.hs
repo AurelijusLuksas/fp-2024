@@ -99,9 +99,9 @@ stateTransition (State lists ings) (Add ingName listName) =
             IngredientList n (ing : is) sublists : rest
         addSublistToList sublist [] = []
         addSublistToList sublist (IngredientList n is sublists : rest) =
-            IngredientList n is (sublist ++ sublists) : rest
+            IngredientList n is (sublists ++ sublist) : rest
     in if any (\(name, items) -> name == listName) updatedLists
-       then Right (["Added ingredient to list"], State updatedLists ings)
+       then Right (["Added ingredient or list to list"], State updatedLists ings)
        else Left "Ingredient or list not found"
 
 stateTransition (State lists ings) (Remove ingName listName) =
