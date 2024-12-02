@@ -362,7 +362,9 @@ genQuery :: Gen Lib2.Query
 genQuery = oneof [
     Lib2.Create <$> genName <*> genQuantity <*> genUnit,
     Lib2.Add <$> genName <*> genName,
-    Lib2.CreateEmptyList <$> genName
+    Lib2.CreateEmptyList <$> genName,
+    Lib2.Delete <$> genName,
+    Lib2.Remove <$> genName <*> genName
   ]
 
 genName :: Gen Lib2.Name
