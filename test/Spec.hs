@@ -7,9 +7,10 @@ import Test.Tasty.HUnit (testCase, (@?=), assert)
 import Test.Tasty.QuickCheck as QC
 import Control.Concurrent (newChan, Chan)
 import Control.Monad.IO.Class (liftIO)
-import Control.Concurrent.STM (atomically, newTVar, readTVar)
+import Control.Concurrent.STM (atomically, newTVar, readTVar, readTVarIO, newTVarIO, TVar)
 import Control.Monad (liftM3)
 import Debug.Trace (trace)
+import Data.List (sortOn)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import qualified Test.QuickCheck.Monadic as QCM
 
@@ -43,6 +44,7 @@ import Lib2 qualified (
 import Lib3 qualified (
     Command(..),
     Statements(..),
+    StorageOp(..),
     stateTransition,
     parseCommand,
     parseStatements,
@@ -51,97 +53,6 @@ import Lib3 qualified (
     )
 
 import Test.Tasty.QuickCheck (Testable(property))
-
-newtype ArbitraryName = ArbitraryName Lib2.Name deriving (Show)
-
--- Define Arbitrary instance for Lib3.Command
-instance Arbitrary Lib3.Command where
-  arbitrary = oneof [ arbitraryStatementCommand
-                    , return Lib3.LoadCommand
-                    , return Lib3.SaveCommand
-                    ]
-
-arbitraryStatementCommand :: Gen Lib3.Command
-arbitraryStatementCommand = do
-  query <- arbitrary
-  return $ Lib3.StatementCommand (Lib3.Single query)
-
-instance Arbitrary Lib2.Query where
-  arbitrary = oneof [ Lib2.Create <$> arbitrary <*> arbitrary <*> arbitrary
-                    , Lib2.Add <$> arbitrary <*> arbitrary
-                    , Lib2.Remove <$> arbitrary <*> arbitrary
-                    , Lib2.Get <$> arbitrary
-                    , Lib2.CreateList <$> arbitrary
-                    , Lib2.CreateEmptyList <$> arbitrary
-                    , Lib2.GetList <$> arbitrary
-                    , Lib2.Delete <$> arbitrary
-                    , Lib2.Find <$> arbitrary
-                    ]
-
-instance Arbitrary ArbitraryName where
-  arbitrary = ArbitraryName <$> (Lib2.WordName <$> validWordName)
-    where
-      validWordName = (:) <$> elements ['a'..'z'] <*> listOf (elements ['a'..'z'])
-
-instance Arbitrary Lib2.Name where
-  arbitrary = oneof [Lib2.WordName <$> validWordName]
-    where
-      validWordName = (:) <$> elements ['a'..'z'] <*> listOf (elements ['a'..'z'])
-
-instance Arbitrary Lib2.Quantity where
-    arbitrary = Lib2.Quantity <$> (getNonNegative <$> arbitrary)
-
-instance Arbitrary Lib2.Unit where
-    arbitrary = oneof [return Lib2.Cup, return Lib2.G, return Lib2.Cloves, return Lib2.Full]
-
-instance Arbitrary Lib2.Ingredient where
-  arbitrary = liftM3 Lib2.Ingredient arbitrary arbitrary arbitrary
-
-instance Arbitrary Lib2.IngredientList where
-  arbitrary = liftM3 Lib2.IngredientList arbitrary arbitrary arbitrary
-
-
-instance Arbitrary Lib2.State where
-  arbitrary = Lib2.State <$> arbitrary <*> arbitrary
-
-
-propertyTests :: TestTree
-propertyTests = testGroup "Lib3 Property Tests"
-  [ QC.testProperty "parseCommand should parse valid commands" prop_parseCommand
-  , QC.testProperty "parseStatements should parse valid statements" prop_parseStatements
-  -- , QC.testProperty "marshallState and renderStatements should be inverses" prop_marshallRenderInverse
-  ]
-
-  -- Property: parseCommand should parse valid commands
-prop_parseCommand :: String -> Bool
-prop_parseCommand input =
-  case Lib3.parseCommand input of
-    Left _ -> True
-    Right _ -> True
-
--- Property: parseStatements should parse valid statements
-prop_parseStatements :: String -> Bool
-prop_parseStatements input =
-  case Lib3.parseStatements input of
-    Left _ -> True
-    Right _ -> True
-
--- Property: marshallState and renderStatements should be inverses
--- prop_marshallRenderInverse :: Lib2.State -> Property
--- prop_marshallRenderInverse state = 
---   let statements = Lib3.marshallState state
---       rendered = Lib3.renderStatements statements
---       parsed = Lib3.parseStatements rendered
---   in trace ("Original State: " ++ show state ++
---             "\nStatements: " ++ show statements ++
---             "\nRendered: " ++ rendered ++
---             "\nParsed: " ++ show parsed) $
---      case parsed of
---        Left err -> trace ("Parse Error: " ++ err) $ property False
---        Right (parsedStatements, _) -> 
---          trace ("Parsed Statements: " ++ show parsedStatements) $
---          property (statements == parsedStatements)
-
 
 
 main :: IO ()
@@ -375,3 +286,92 @@ parserTests = testGroup "Parser Helper Functions"
       Lib2.parseFind "find(banana: 3 full)" @?= Right (Lib2.Find (Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 3) Lib2.Full), "")
 
   ]
+
+
+propertyTests :: TestTree
+propertyTests = testGroup "Lib3 Property Tests"
+  [
+    QC.testProperty "Save then load" $ withMaxSuccess 100 saveThenLoad,
+    QC.testProperty "Preserve state" $ withMaxSuccess 100 preserveState
+  ]
+
+genLimitedStatements :: Gen Lib3.Statements
+genLimitedStatements = do
+  n <- choose (1, 4) -- Limit the number of commands to a maximum of 4
+  stmts <- vectorOf n genQuery
+  return $ Lib3.Batch stmts
+
+saveThenLoad :: Property
+saveThenLoad = forAll genLimitedStatements $ \stmts ->
+  let rendered = Lib3.renderStatements stmts
+      parsed = Lib3.parseStatements rendered
+  in 
+  counterexample (showDetails stmts rendered parsed) $
+  case parsed of
+    Right (parsedStmts, _) -> stmts == parsedStmts
+    _ -> False
+  where
+    showDetails expected rendered actual =
+      "Expected: " ++ show expected ++
+      "\nRendered: " ++ rendered ++
+      "\nActual: " ++ show actual
+
+
+preserveState :: Property
+preserveState = forAll genLimitedStatements $ \stmts -> ioProperty $ do
+  oldState <- newTVarIO Lib2.emptyState
+  newState <- newTVarIO Lib2.emptyState
+  chan <- newChan :: IO (Chan Lib3.StorageOp)
+  _ <- Lib3.stateTransition oldState (Lib3.StatementCommand stmts) chan
+  marshalled <- Lib3.marshallState <$> readTVarIO oldState
+  let rendered = Lib3.renderStatements marshalled
+  case Lib3.parseStatements rendered of
+    Left err -> return $ counterexample ("Parse error: " ++ err) False
+    Right (parsed, _) -> do
+      _ <- Lib3.stateTransition newState (Lib3.StatementCommand parsed) chan
+      oldStateVal <- readTVarIO oldState
+      newStateVal <- readTVarIO newState
+      return $ counterexample (showDetails oldStateVal newStateVal) (sortState oldStateVal == sortState newStateVal)
+  where
+    showDetails expected actual =
+      "Expected: " ++ show expected ++
+      "\nActual: " ++ show actual
+
+    sortState state = state 
+      { Lib2.ingredients = sortOn show (Lib2.ingredients state)
+      , Lib2.ingredientLists = sortOn (show . fst) (Lib2.ingredientLists state)
+      }
+
+-- Generators
+
+maxLen :: Int
+maxLen = 15
+
+limListOf1 :: Gen a -> Gen [a]
+limListOf1 genElement = sized $ \n ->
+  let size = min n maxLen
+  in resize size (listOf1 genElement)
+
+genStatements :: Gen Lib3.Statements
+genStatements = oneof [
+    Lib3.Single <$> genQuery,
+    Lib3.Batch <$> limListOf1 genQuery
+  ]
+
+genQuery :: Gen Lib2.Query
+genQuery = oneof [
+    Lib2.Create <$> genName <*> genQuantity <*> genUnit,
+    Lib2.Add <$> genName <*> genName,
+    Lib2.CreateEmptyList <$> genName
+  ]
+
+genName :: Gen Lib2.Name
+genName = oneof [
+    Lib2.WordName <$> (listOf1 (elements ['a'..'z']) `suchThat` (\s -> length s > 1))
+  ]
+
+genQuantity :: Gen Lib2.Quantity
+genQuantity = Lib2.Quantity <$> (arbitrary `suchThat` (> 0))
+
+genUnit :: Gen Lib2.Unit
+genUnit = elements [Lib2.Cup, Lib2.Cups, Lib2.Tbsp, Lib2.Tsp, Lib2.Oz, Lib2.Lb, Lib2.G, Lib2.Kg, Lib2.Ml, Lib2.L, Lib2.Pinch, Lib2.Cloves, Lib2.Full, Lib2.Half]

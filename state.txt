@@ -1,12 +1,6 @@
 BEGIN
-create(v, 8, full)
-create(ha, 15, full)
-create(a, 9, g)
-create(g, 1, kg)
-create(h, 5, g)
-create_empty_list(meal)
-add(ha, meal)
-add(g, meal)
+create(banana, 100, g)
+create(apple, 3, full)
 create_empty_list(food)
-add(a, food)
+add(apple, food)
 END

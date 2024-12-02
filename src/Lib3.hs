@@ -15,11 +15,11 @@ import Control.Concurrent ( Chan, readChan, writeChan, newChan )
 import Control.Concurrent.STM ( STM, TVar, atomically, newTVarIO, readTVar, writeTVar )
 import Control.Exception ( SomeException, try )
 import qualified Lib2
-import Data.List ( isPrefixOf, isSuffixOf )
+import Data.List ( isPrefixOf, isSuffixOf, lines )
 import Data.Either ( partitionEithers )
 import Data.Char (isSpace)
 import Control.Monad (foldM)
-import Prelude ( String, IO, Either(..), Maybe(..), Char, Show, Eq, foldr, show, (++), (.), reverse, dropWhile, map, concatMap, unlines, null, not, filter, length, take, drop, otherwise, ($), (==), any, elem, concat, return, putStrLn, error, writeFile, readFile, (-), head, tail, fst, either )
+import Prelude ( String, IO, Either(..), Maybe(..), Char, Show, Eq, foldr, show, (++), (.), lines, reverse, dropWhile, map, concatMap, unlines, null, not, filter, length, take, drop, otherwise, ($), (==), any, elem, concat, return, putStrLn, error, writeFile, readFile, (-), head, tail, fst, either )
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
 
@@ -84,13 +84,15 @@ parseStatements input =
           in if null body
             then Right (Batch [], "") -- empty batch
             else
-              let queries = map (Lib2.parseQuery . trim) (filter (not . null) $ splitOn ';' body)
+              let queries = map (Lib2.parseQuery . trim) (lines body)
                   (errors, parsedQueries) = partitionEithers queries
               in if null errors
                 then Right (Batch parsedQueries, "")
                 else Left $ "Error parsing queries: " ++ unlines errors
         else Left "Batch must end with 'END'"
-    else Left "Batch must start with 'BEGIN'"
+    else case Lib2.parseQuery inputTrim of
+      Left err -> Left err
+      Right query -> Right (Single query, "")
 
 trim :: String -> String
 trim = f . f 
