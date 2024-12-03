@@ -50,6 +50,16 @@
   (major1) == 0 && (major2) <  22 || \
   (major1) == 0 && (major2) == 22 && (minor) <= 0)
 #endif /* MIN_VERSION_scotty */
+/* package stm-2.5.1.0 */
+#ifndef VERSION_stm
+#define VERSION_stm "2.5.1.0"
+#endif /* VERSION_stm */
+#ifndef MIN_VERSION_stm
+#define MIN_VERSION_stm(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  5 || \
+  (major1) == 2 && (major2) == 5 && (minor) <= 1)
+#endif /* MIN_VERSION_stm */
 /* package string-conversions-0.4.0.1 */
 #ifndef VERSION_string_conversions
 #define VERSION_string_conversions "0.4.0.1"

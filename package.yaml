@@ -86,7 +86,9 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - mtl
     - fp2024
+    - free
     - repline
     - lens
     - wreq
@@ -100,6 +102,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - stm
     - fp2024
     - repline
     - scotty

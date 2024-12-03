@@ -28,8 +28,13 @@ module Lib2 (
     parseGetList
 ) where
 
+import qualified Control.Monad.Trans.State.Strict as S (State, get, put, runState)
+import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
+import Control.Monad.Trans.Class (lift)
 import Data.Char (isSpace, isDigit, isLetter)
 import Data.List (isPrefixOf, find, intercalate)
+
+type Parser a = ExceptT String (S.State String) a
 
 -- Define the Name data type
 data Name = NumberName Int | WordName String | StringName String
@@ -61,11 +66,7 @@ data Query
     | GetList Name
     | Delete Name
     | Find Ingredient
-    | DeleteList Name
     deriving (Show, Eq)
-
--- Define the parser type
-type Parser a = String -> Either String (a, String)
 
 -- Define the State data type
 data State = State {
@@ -99,20 +100,17 @@ stateTransition (State lists ings) (Add ingName listName) =
             IngredientList n (ing : is) sublists : rest
         addSublistToList sublist [] = []
         addSublistToList sublist (IngredientList n is sublists : rest) =
-            IngredientList n is (sublists ++ sublist) : rest
-    in if any (\(name, items) -> name == listName) updatedLists
-       then Right (["Added ingredient or list to list"], State updatedLists ings)
-       else Left "Ingredient or list not found"
+            IngredientList n is (sublist ++ sublists) : rest
+    in Right (["Added ingredient or list to list"], State updatedLists ings)
 
 stateTransition (State lists ings) (Remove ingName listName) =
-    let updatedLists = map (\(name, items) -> if name == listName then (name, removeIngredientFromList ingName items) else (name, items)) lists
-        removeIngredientFromList _ [] = []
-        removeIngredientFromList ingName (IngredientList n is sublists : rest)
-            | n == listName = IngredientList n (filter (\(Ingredient n _ _) -> n /= ingName) is) sublists : rest
-            | otherwise = IngredientList n is (removeIngredientFromList ingName sublists) : removeIngredientFromList ingName rest
+    let updatedLists = map (\(name, items) -> if name == listName then (name, removeFromList ingName items) else (name, items)) lists
+        removeFromList ingName [] = []
+        removeFromList ingName (IngredientList n is sublists : rest) =
+            IngredientList n (filter (\(Ingredient n _ _) -> n /= ingName) is) sublists : removeFromList ingName rest
     in if any (\(name, items) -> name == listName && not (null (filter (\(Ingredient n _ _) -> n == ingName) (concatMap (\(IngredientList _ is _) -> is) items)))) updatedLists
        then Right (["Removed ingredient"], State updatedLists ings)
-       else if any (\(name, items) -> not (null (removeIngredientFromList ingName items))) updatedLists
+       else if any (\(name, items) -> not (null (removeFromList ingName items))) updatedLists
             then Right (["Removed ingredient"], State updatedLists ings)
             else Left "Ingredient or list not found"
 
@@ -120,14 +118,6 @@ stateTransition (State lists ings) (Get name) =
     case find (\(Ingredient n _ _) -> n == name) ings of
         Just (Ingredient (WordName actualName) (Quantity qty) unit) -> Right ([actualName ++ ": " ++ show qty ++ " " ++ show unit], State lists ings)
         Nothing -> Left "Ingredient not found"
-
-stateTransition (State lists ings) (CreateList (IngredientList name items sublists)) =
-    if any (\(n, _) -> n == name) lists
-    then Left "List already exists"
-    else
-        let newList = (name, [IngredientList name items sublists])
-            newLists = newList : lists
-        in Right (["Created ingredient list"], State newLists ings)
 
 stateTransition (State lists ings) (CreateEmptyList name) =
     if any (\(n, _) -> n == name) lists
@@ -142,78 +132,13 @@ stateTransition (State lists ings) (Find ingredient) =
     in if null foundLists
        then Left "Ingredient not found in any list"
        else Right (["Found in lists: " ++ intercalate ", " (map formatName foundLists)], State lists ings)
-    where
-        findIngredientInLists :: Ingredient -> [(Name, [IngredientList])] -> [Name]
-        findIngredientInLists _ [] = []
-        findIngredientInLists ing ((name, items):rest) =
-            if any (ingredientInList ing) items
-            then name : findIngredientInLists ing rest
-            else findIngredientInLists ing rest
-
-        ingredientInList :: Ingredient -> IngredientList -> Bool
-        ingredientInList ing (IngredientList _ is sublists) =
-            ing `elem` is || any (ingredientInList ing) sublists
-
-        formatName :: Name -> String
-        formatName (WordName n) = n
-        formatName (NumberName n) = show n
-        formatName (StringName n) = n
-
-stateTransition state@(State lists ings) (GetList name) = 
-    case findList name lists of
-        Just list -> 
-            let output = formatList name list
-            in Right ([output, "Found list"], state)
-        Nothing -> 
-            Left "List not found"
-    where
-        findList :: Name -> [(Name, [IngredientList])] -> Maybe [IngredientList]
-        findList _ [] = Nothing
-        findList name ((n, items):rest)
-            | name == n = Just items
-            | otherwise = case findListInItems name items of
-                Just list -> Just list
-                Nothing -> findList name rest
-
-        findListInItems :: Name -> [IngredientList] -> Maybe [IngredientList]
-        findListInItems _ [] = Nothing
-        findListInItems name (IngredientList n is sublists : rest)
-            | name == n = Just [IngredientList n is sublists]
-            | otherwise = case findListInItems name sublists of
-                Just list -> Just list
-                Nothing -> findListInItems name rest
-        
-        formatList :: Name -> [IngredientList] -> String
-        formatList name lists = formatName name ++ ": {\n" ++ unlines (map formatIngredientList lists) ++ "}"
-
-        formatIngredientList :: IngredientList -> String
-        formatIngredientList (IngredientList n is sublists) = 
-            unlines (map formatIngredient is) ++ 
-            concatMap (\sub -> 
-                        "\t" ++ formatName (getName sub) ++ ": {\n" ++ 
-                        indent (formatIngredientList sub) ++ "\t}\n") sublists
-            where
-                getName :: IngredientList -> Name
-                getName (IngredientList name _ _) = name
-
-
-        formatIngredient :: Ingredient -> String
-        formatIngredient (Ingredient n (Quantity q) unit) = 
-            "\t" ++ formatName n ++ ": " ++ show q ++ " " ++ show unit
-
-        formatName :: Name -> String
-        formatName (WordName n) = n  -- Adjust this line based on the actual structure of Name
-
-        indent :: String -> String
-        indent = unlines . map ("\t" ++) . lines
-    
 
 stateTransition (State lists ings) (Delete name) =
     case find (\(Ingredient n _ _) -> n == name) ings of
         Just _ ->
             let remainingIngs = filter (\(Ingredient n _ _) -> n /= name) ings
             in Right (["Deleted ingredient"], State lists remainingIngs)
-        Nothing ->
+        Nothing -> 
             let updatedLists = map (\(listName, items) -> (listName, deleteFromList name items)) lists
                 deleteFromList _ [] = []
                 deleteFromList name (IngredientList n is sublists : rest)
@@ -225,265 +150,214 @@ stateTransition (State lists ings) (Delete name) =
 
 -- Helper functions for parsing
 and2' :: (a -> b -> c) -> Parser a -> Parser b -> Parser c
-and2' f a b input =
-    case a input of
-        Right (v1, r1) ->
-            case b r1 of
-                Right (v2, r2) -> Right (f v1 v2, r2)
-                Left e2 -> Left e2
-        Left e1 -> Left e1
+and2' f a b = do
+    v1 <- a
+    v2 <- b
+    return $ f v1 v2
 
 and3' :: (a -> b -> c -> d) -> Parser a -> Parser b -> Parser c -> Parser d
-and3' f a b c input =
-    case a input of
-        Right (v1, r1) ->
-            case b r1 of
-                Right (v2, r2) ->
-                    case c r2 of
-                        Right (v3, r3) -> Right (f v1 v2 v3, r3)
-                        Left e3 -> Left e3
-                Left e2 -> Left e2
-        Left e1 -> Left e1
+and3' f a b c = do
+    v1 <- a
+    v2 <- b
+    v3 <- c
+    return $ f v1 v2 v3
 
 and4' :: (a -> b -> c -> d -> e) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e
-and4' f a b c d input =
-    case a input of
-        Right (v1, r1) -> 
-            case b r1 of
-                Right (v2, r2) -> 
-                    case c r2 of
-                        Right (v3, r3) -> 
-                            case d r3 of
-                                Right (v4, r4) -> Right (f v1 v2 v3 v4, r4)
-                                Left e4 -> Left e4
-                        Left e3 -> Left e3
-                Left e2 -> Left e2
-        Left e1 -> Left e1
+and4' f a b c d = do
+    v1 <- a
+    v2 <- b
+    v3 <- c
+    v4 <- d
+    return $ f v1 v2 v3 v4
 
 and5' :: (a -> b -> c -> d -> e -> f) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f
-and5' f a b c d e input =
-    case a input of
-        Right (v1, r1) ->
-            case b r1 of
-                Right (v2, r2) ->
-                    case c r2 of
-                        Right (v3, r3) ->
-                            case d r3 of
-                                Right (v4, r4) ->
-                                    case e r4 of
-                                        Right (v5, r5) -> Right (f v1 v2 v3 v4 v5, r5)
-                                        Left e5 -> Left e5
-                                Left e4 -> Left e4
-                        Left e3 -> Left e3
-                Left e2 -> Left e2
-        Left e1 -> Left e1
+and5' f a b c d e = do
+    v1 <- a
+    v2 <- b
+    v3 <- c
+    v4 <- d
+    v5 <- e
+    return $ f v1 v2 v3 v4 v5
 
-and7' :: (a -> b -> c -> d -> e -> f -> g -> h)
-      -> Parser a
-      -> Parser b
-      -> Parser c
-      -> Parser d
-      -> Parser e
-      -> Parser f
-      -> Parser g
-      -> Parser h
-and7' g a b c d e f g' input =
-    case a input of
-        Right (v1, r1) ->
-            case b r1 of
-                Right (v2, r2) ->
-                    case c r2 of
-                        Right (v3, r3) ->
-                            case d r3 of
-                                Right (v4, r4) ->
-                                    case e r4 of
-                                        Right (v5, r5) ->
-                                            case f r5 of
-                                                Right (v6, r6) ->
-                                                    case g' r6 of
-                                                        Right (v7, r7) -> Right (g v1 v2 v3 v4 v5 v6 v7, r7)
-                                                        Left e7 -> Left e7
-                                                Left e6 -> Left e6
-                                        Left e5 -> Left e5
-                                Left e4 -> Left e4
-                        Left e3 -> Left e3
-                Left e2 -> Left e2
-        Left e1 -> Left e1
-
-string :: String -> Parser String
-string str input
-    | str `isPrefixOf` input = Right (str, drop (length str) input)
-    | otherwise = Left $ "Expected '" ++ str ++ "', but got '" ++ take (length str) input ++ "'"
+and7' :: (a -> b -> c -> d -> e -> f -> g -> h) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f -> Parser g -> Parser h
+and7' f a b c d e g h = do
+    v1 <- a
+    v2 <- b
+    v3 <- c
+    v4 <- d
+    v5 <- e
+    v6 <- g
+    v7 <- h
+    return $ f v1 v2 v3 v4 v5 v6 v7
 
 parseChar :: Char -> Parser Char
-parseChar c input = 
-    let skipWhitespace = dropWhile isSpace input
-    in case skipWhitespace of
-        [] -> Left ("Cannot find " ++ [c] ++ " in an empty input")
-        (h:t) -> if c == h then Right (c, t) else Left (c : " is not found in " ++ [h])
+parseChar c = do
+    input <- lift S.get
+    case input of
+        [] -> throwE $ "Cannot find " ++ [c] ++ " in an empty input"
+        (h:t) -> if c == h then lift (S.put t) >> return c else throwE $ c : " is not found in " ++ [h]
 
 parseWord :: Parser String
-parseWord input =
+parseWord = do
+    input <- lift S.get
     let letters = takeWhile isLetter input
         rest = drop (length letters) input
-    in if not (null letters)
-        then Right (letters, rest)
-        else Left (input ++ " does not start with a letter")
+    if not (null letters)
+        then lift (S.put rest) >> return letters
+        else throwE $ input ++ " does not start with a letter"
 
 parseNumber :: Parser Int
-parseNumber [] = Left "empty input, cannot parse a number"
-parseNumber str =
-    let digits = takeWhile isDigit str
-        rest = drop (length digits) str
-    in if null digits
-        then Left "not a number"
-        else Right (read digits, rest)
+parseNumber = do
+    input <- lift S.get
+    let digits = takeWhile isDigit input
+        rest = drop (length digits) input
+    if null digits
+        then throwE "not a number"
+        else lift (S.put rest) >> return (read digits)
 
 parseName :: Parser Name
-parseName input =
+parseName = do
+    input <- lift S.get
     let skipWhitespace = dropWhile (== ' ')
         trimmedInput = skipWhitespace input
-    in case parseNumber trimmedInput of
-        Right (number, rest) -> Right (NumberName number, rest)
-        Left _ -> case parseWord trimmedInput of
-            Right (word, rest) -> Right (WordName word, rest)
-            Left err -> error err
-
+    case S.runState (runExceptT parseNumber) trimmedInput of
+        (Right number, rest) -> lift (S.put rest) >> return (NumberName number)
+        (Left _, _) -> case S.runState (runExceptT parseWord) trimmedInput of
+            (Right word, rest) -> lift (S.put rest) >> return (WordName word)
+            (Left err, _) -> throwE err
 
 parseQuantity :: Parser Quantity
-parseQuantity input = 
+parseQuantity = do
+    input <- lift S.get
     let skipWhitespace = dropWhile (== ' ')
         trimmedInput = skipWhitespace input
-    in case parseNumber trimmedInput of
-        Right (n, rest) -> Right (Quantity n, skipWhitespace rest)
-        Left err -> Left err
+    case S.runState (runExceptT parseNumber) trimmedInput of
+        (Right n, rest) -> lift (S.put (skipWhitespace rest)) >> return (Quantity n)
+        (Left err, _) -> throwE err
 
 parseUnit :: Parser Unit
-parseUnit input = 
+parseUnit = do
+    input <- lift S.get
     let skipWhitespace = dropWhile (== ' ')
         trimmedInput = skipWhitespace input
-    in case span isLetter trimmedInput of
-        ("cup", rest) -> Right (Cup, rest)
-        ("cups", rest) -> Right (Cups, rest)
-        ("tbsp", rest) -> Right (Tbsp, rest)
-        ("tsp", rest) -> Right (Tsp, rest)
-        ("oz", rest) -> Right (Oz, rest)
-        ("lb", rest) -> Right (Lb, rest)
-        ("g", rest) -> Right (G, rest)
-        ("kg", rest) -> Right (Kg, rest)
-        ("ml", rest) -> Right (Ml, rest)
-        ("l", rest) -> Right (L, rest)
-        ("pinch", rest) -> Right (Pinch, rest)
-        ("cloves", rest) -> Right (Cloves, rest)
-        ("full", rest) -> Right (Full, rest)
-        ("half", rest) -> Right (Half, rest)
-        _ -> Left "Invalid unit"
+    case span isLetter trimmedInput of
+        ("cup", rest) -> lift (S.put rest) >> return Cup
+        ("cups", rest) -> lift (S.put rest) >> return Cups
+        ("tbsp", rest) -> lift (S.put rest) >> return Tbsp
+        ("tsp", rest) -> lift (S.put rest) >> return Tsp
+        ("oz", rest) -> lift (S.put rest) >> return Oz
+        ("lb", rest) -> lift (S.put rest) >> return Lb
+        ("g", rest) -> lift (S.put rest) >> return G
+        ("kg", rest) -> lift (S.put rest) >> return Kg
+        ("ml", rest) -> lift (S.put rest) >> return Ml
+        ("l", rest) -> lift (S.put rest) >> return L
+        ("pinch", rest) -> lift (S.put rest) >> return Pinch
+        ("cloves", rest) -> lift (S.put rest) >> return Cloves
+        ("full", rest) -> lift (S.put rest) >> return Full
+        ("half", rest) -> lift (S.put rest) >> return Half
+        _ -> throwE "Invalid unit"
 
 parseIngredient :: Parser Ingredient
-parseIngredient = and4' (\name _ qty unit -> Ingredient name qty unit) parseName (parseChar ':') parseQuantity (parseChar ' ' *> parseUnit)
+parseIngredient = and3' Ingredient parseName (parseChar ':' *> parseQuantity) (parseChar ' ' *> parseUnit)
 
 parseIngredientList :: Parser IngredientList
-parseIngredientList = and5' (\name _ _ (ingredients, nestedLists) _ -> IngredientList name ingredients nestedLists) parseName (parseChar ':') (parseChar '{') parseMoreItems (parseChar '}')
+parseIngredientList = and3' (\name _ (ings, lists) -> IngredientList name ings lists) parseName (parseChar ':') (parseChar '{' *> parseMoreItems <* parseChar '}')
+
 
 parseMoreItems :: Parser ([Ingredient], [IngredientList])
-parseMoreItems input = 
-    case parseIngredient input of
-        Right (ing, rest) -> 
-            case parseChar ',' rest of
-                Right (_, rest') -> 
-                    case parseMoreItems rest' of
-                        Right ((ings, lists), rest'') -> 
-                            Right ((ing : ings, lists), rest'')
-                        Left _ -> 
-                            Right (([ing], []), rest')
-                Left _ -> 
-                    Right (([ing], []), rest)
-        Left _ -> 
-            case parseIngredientList input of
-                Right (list, rest) -> 
-                    case parseChar ',' rest of
-                        Right (_, rest') -> 
-                            case parseMoreItems rest' of
-                                Right ((ings, lists), rest'') -> 
-                                    Right ((ings, list : lists), rest'')
-                                Left _ -> 
-                                    Right (([], [list]), rest')
-                        Left _ -> 
-                            Right (([], [list]), rest)
-                Left _ -> 
-                    Right (([], []), input)
+parseMoreItems = do
+    input <- lift S.get
+    case S.runState (runExceptT parseIngredient) input of
+        (Right ing, rest) -> do
+            lift (S.put rest)
+            case S.runState (runExceptT (parseChar ',')) rest of
+                (Right rest', _) -> do
+                    lift (S.put rest)
+                    (ings, lists) <- parseMoreItems
+                    return (ing : ings, lists)
+                (Left _, _) -> return ([ing], [])
+        (Left _, _) -> case S.runState (runExceptT parseIngredientList) input of
+            (Right list, rest) -> do
+                lift (S.put rest)
+                case S.runState (runExceptT (parseChar ',')) rest of
+                    (Right rest', _) -> do
+                        lift (S.put rest)
+                        (ings, lists) <- parseMoreItems
+                        return (ings, list : lists)
+                    (Left _, _) -> return ([], [list])
+            (Left _, _) -> return ([], [])
 
 parseQuery :: String -> Either String Query
 parseQuery input = 
-    case parseCreate input of
-        Right (query, _) -> Right query
-        Left err1 -> case parseAdd input of
-            Right (query, _) -> Right query
-            Left err2 -> case parseRemove input of
-                Right (query, _) -> Right query
-                Left err3 -> case parseGet input of
-                    Right (query, _) -> Right query
-                    Left err4 -> case parseCreateEmptyList input of
-                        Right (query, _) -> Right query
-                        Left err5 -> case parseDelete input of
-                            Right (query, _) -> Right query
-                            Left err6 -> case parseGetList input of
-                                Right (query, _) -> Right query
-                                Left err7 -> (case parseCreateList input of
-                                    Right (query, _) -> Right query
-                                    Left err8 -> (case parseFind input of
-                                        Right (query, _) -> Right query
-                                        Left err9 -> Left $ " Parse errors: " ++ err1 ++ ", " ++ err2 ++ ", "
-                                            ++ err3 ++ ", " ++ err4 ++ ", " ++ err5 ++ ", " ++ err6 ++ ", "
-                                            ++ err7 ++ ", " ++ err8 ++ ", " ++ err9))
+    case S.runState (runExceptT parseCreate) input of
+        (Right query, _) -> Right query
+        (Left err1, _) -> case S.runState (runExceptT parseAdd) input of
+            (Right query, _) -> Right query
+            (Left err2, _) -> case S.runState (runExceptT parseRemove) input of
+                (Right query, _) -> Right query
+                (Left err3, _) -> case S.runState (runExceptT parseGet) input of
+                    (Right query, _) -> Right query
+                    (Left err4, _) -> case S.runState (runExceptT parseCreateEmptyList) input of
+                        (Right query, _) -> Right query
+                        (Left err5, _) -> case S.runState (runExceptT parseDelete) input of
+                            (Right query, _) -> Right query
+                            (Left err6, _) -> case S.runState (runExceptT parseGetList) input of
+                                (Right query, _) -> Right query
+                                (Left err7, _) -> case S.runState (runExceptT parseCreateList) input of
+                                    (Right query, _) -> Right query
+                                    (Left err8, _) -> case S.runState (runExceptT parseFind) input of
+                                        (Right query, _) -> Right query
+                                        (Left err9, _) -> Left $ "Parse errors: " ++ err1 ++ ", " ++ err2 ++ ", " ++ err3 ++ ", " ++ err4 ++ ", " ++ err5 ++ ", " ++ err6 ++ ", " ++ err7 ++ ", " ++ err8 ++ ", " ++ err9
 
--- <create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
 parseCreate :: Parser Query
 parseCreate = and7' create (string "create(") parseName (parseChar ',') parseQuantity (parseChar ',') parseUnit (parseChar ')')
     where create _ name _ qty _ unit _ = Create name qty unit
 
--- <find> ::= "find (" <ingredient> ")"
-parseFind :: Parser Query
-parseFind input = case and3' (\_ ingredient _ -> Find ingredient) (string "find(") parseIngredient (parseChar ')') input of
-    Right (query, rest) -> Right (query, rest)
-    Left err -> Left err
-
--- <add> ::= "add (" <name> ", " <list_name> ")"
 parseAdd :: Parser Query
 parseAdd = and5' add (string "add(") parseName (parseChar ',') parseName (parseChar ')')
     where add _ name _ listName _ = Add name listName
 
--- <remove> ::= "remove (" <name> ", " <list_name> ")"
 parseRemove :: Parser Query
 parseRemove = and5' remove (string "remove(") parseName (parseChar ',') parseName (parseChar ')')
     where remove _ name _ listName _ = Remove name listName
 
--- <get> ::= "get (" <name> ")"
 parseGet :: Parser Query
-parseGet input = case and2' (\_ name -> Get name) (string "get(") (parseName <* parseChar ')') input of
-    Right (query, rest) -> Right (query, rest)
-    Left err -> Left err
+parseGet = and2' (\_ name -> Get name) (string "get(") (parseName <* parseChar ')')
 
--- <create_list> ::= "create_list (" <ingredients_list> ")"
-parseCreateList :: Parser Query
-parseCreateList input = case and3' (\_ ingredientList _ -> CreateList ingredientList) (string "create_list(") parseIngredientList (parseChar ')') input of
-    Right (query, rest) -> Right (query, rest)
-    Left err -> Left err
-
--- <create_empty_list> ::= "create_list (" <name> ")"
 parseCreateEmptyList :: Parser Query
-parseCreateEmptyList input = case and2' (\_ name -> CreateEmptyList name) (string "create_empty_list(") (parseName <* parseChar ')') input of
-    Right (query, rest) -> Right (query, rest)
-    Left err -> Left err
+parseCreateEmptyList = and2' (\_ name -> CreateEmptyList name) (string "create_empty_list(") (parseName <* parseChar ')')
 
--- <get_list> ::= "get_list (" <name> ")"
-parseGetList :: Parser Query
-parseGetList input = case and2' (\_ name -> GetList name) (string "get_list(") (parseName <* parseChar ')') input of
-    Right (query, rest) -> Right (query, rest)
-    Left err -> Left err
-
--- <delete> ::= "delete (" <name> ")"
 parseDelete :: Parser Query
-parseDelete input = case and2' (\_ name -> Delete name) (string "delete(") (parseName <* parseChar ')') input of
-    Right (query, rest) -> Right (query, rest)
-    Left err -> Left err
+parseDelete = and2' (\_ name -> Delete name) (string "delete(") (parseName <* parseChar ')')
+
+parseGetList :: Parser Query
+parseGetList = and2' (\_ name -> GetList name) (string "get_list(") (parseName <* parseChar ')')
+
+parseCreateList :: Parser Query
+parseCreateList = and3' (\_ ingredientList _ -> CreateList ingredientList) (string "create_list(") parseIngredientList (parseChar ')')
+
+parseFind :: Parser Query
+parseFind = and3' (\_ ingredient _ -> Find ingredient) (string "find(") parseIngredient (parseChar ')')
+
+string :: String -> Parser String
+string str = do
+    input <- lift S.get
+    if str `isPrefixOf` input
+        then lift (S.put (drop (length str) input)) >> return str
+        else throwE $ "Expected '" ++ str ++ "', but got '" ++ take (length str) input ++ "'"
+
+findIngredientInLists :: Ingredient -> [(Name, [IngredientList])] -> [Name]
+findIngredientInLists _ [] = []
+findIngredientInLists ing ((name, items):rest) =
+    if any (ingredientInList ing) items
+    then name : findIngredientInLists ing rest
+    else findIngredientInLists ing rest
+
+ingredientInList :: Ingredient -> IngredientList -> Bool
+ingredientInList ing (IngredientList _ is sublists) =
+    ing `elem` is || any (ingredientInList ing) sublists
+
+formatName :: Name -> String
+formatName (WordName n) = n
+formatName (NumberName n) = show n
+formatName (StringName n) = n

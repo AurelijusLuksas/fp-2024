@@ -40,6 +40,16 @@
   (major1) == 0 && (major2) <  1 || \
   (major1) == 0 && (major2) == 1 && (minor) <= 0)
 #endif /* MIN_VERSION_fp2024 */
+/* package free-5.2 */
+#ifndef VERSION_free
+#define VERSION_free "5.2"
+#endif /* VERSION_free */
+#ifndef MIN_VERSION_free
+#define MIN_VERSION_free(major1,major2,minor) (\
+  (major1) <  5 || \
+  (major1) == 5 && (major2) <  2 || \
+  (major1) == 5 && (major2) == 2 && (minor) <= 0)
+#endif /* MIN_VERSION_free */
 /* package lens-5.3.2 */
 #ifndef VERSION_lens
 #define VERSION_lens "5.3.2"
@@ -50,6 +60,16 @@
   (major1) == 5 && (major2) <  3 || \
   (major1) == 5 && (major2) == 3 && (minor) <= 2)
 #endif /* MIN_VERSION_lens */
+/* package mtl-2.2.2 */
+#ifndef VERSION_mtl
+#define VERSION_mtl "2.2.2"
+#endif /* VERSION_mtl */
+#ifndef MIN_VERSION_mtl
+#define MIN_VERSION_mtl(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  2 || \
+  (major1) == 2 && (major2) == 2 && (minor) <= 2)
+#endif /* MIN_VERSION_mtl */
 /* package repline-0.4.2.0 */
 #ifndef VERSION_repline
 #define VERSION_repline "0.4.2.0"
