@@ -41,3 +41,22 @@ create_empty_list(food)
 add(a, food)
 END
 State loaded
+
+----------------------------------
+
+BEGIN
+create(b, 4, g);
+create(h, 5, g);
+create(g, 1, kg);
+create(a, 9, g);
+create_empty_list(food);
+add(h, food);
+create(ha, 15, full);
+create(v, 8, full);
+create_empty_list(meal);
+add(g, meal);
+remove(h,food);
+delete(b);
+add(a, food);
+add(ha,meal);
+END

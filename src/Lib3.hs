@@ -12,7 +12,7 @@ module Lib3
     ) where
 
 import Control.Concurrent ( Chan, readChan, writeChan, newChan )
-import Control.Concurrent.STM ( STM, TVar, atomically, newTVarIO, readTVar, writeTVar )
+import Control.Concurrent.STM ( STM, TVar, atomically, newTVarIO, readTVar, writeTVar, readTVarIO )
 import Control.Exception ( SomeException, try )
 import qualified Lib2
 import Data.List ( isPrefixOf, isSuffixOf, lines )
@@ -97,13 +97,6 @@ parseStatements input =
 trim :: String -> String
 trim = f . f 
   where f = reverse . dropWhile isSpace
-
-splitOn :: Char -> String -> [String]
-splitOn _ [] = [""]
-splitOn c (x:xs)
-  | c == x = "" : rest
-  | otherwise = (x : head rest) : tail rest
-  where rest = splitOn c xs
 
 -- | Converts program's state into Statements
 -- (probably a batch, but might be a single query)
@@ -215,7 +208,7 @@ stateTransition stateVar command ioChan = case command of
                 atomically $ writeTVar stateVar newState
                 return $ Right ["State loaded"]
     SaveCommand -> do
-        state <- atomically $ readTVar stateVar
+        state <- readTVarIO stateVar
         result <- saveState state ioChan
         return $ case result of
             Left err -> Left err
@@ -238,7 +231,7 @@ loadState ioChan = do
     resultChan <- newChan
     writeChan ioChan (Load resultChan)
     result <- readChan resultChan
-    putStrLn $ "Loaded state:\n" ++ result -- Print the loaded state to the console for debugging
+    putStrLn $ "Loaded state:\n" ++ result 
     case parseStatements result of
         Left err -> return $ Left err
         Right (stmts, _) -> case executeStatements Lib2.emptyState stmts of
@@ -249,7 +242,7 @@ loadState ioChan = do
 saveState :: Lib2.State -> Chan StorageOp -> IO (Either String ())
 saveState state ioChan = do
     let content = renderStatements (marshallState state)
-    -- putStrLn $ "Saving state:\n" ++ content -- Print the state to the console for debugging
+    -- putStrLn $ "Saving state:\n" ++ content 
     resultChan <- newChan
     writeChan ioChan (Save content resultChan)
     readChan resultChan
