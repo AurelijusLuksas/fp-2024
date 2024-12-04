@@ -89,7 +89,10 @@ executables:
     - mtl
     - fp2024
     - free
+    - stm
     - repline
+    - transformers
+    - text
     - lens
     - wreq
     - bytestring

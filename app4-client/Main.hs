@@ -21,15 +21,18 @@ interpretOneByOne (Free (D.Add ingName listName next)) = do
 interpretOneByOne (Free (D.Remove ingName listName next)) = do
     _ <- W.post "http://localhost:3000" (pack $ "remove(" ++ ingName ++ ", " ++ listName ++ ")")
     interpretOneByOne next
-interpretOneByOne (Free (D.Get name next)) = do
-    resp <- W.post "http://localhost:3000" (pack $ "get(" ++ name ++ ")")
-    interpretOneByOne (next (cs $ resp ^. W.responseBody))
 interpretOneByOne (Free (D.CreateEmptyList name next)) = do
     _ <- W.post "http://localhost:3000" (pack $ "create_empty_list(" ++ name ++ ")")
     interpretOneByOne next
 interpretOneByOne (Free (D.Delete name next)) = do
     _ <- W.post "http://localhost:3000" (pack $ "delete(" ++ name ++ ")")
     interpretOneByOne next
+interpretOneByOne (Free (D.CreateList name items next)) = do
+    _ <- W.post "http://localhost:3000" (pack $ "create_list(" ++ name ++ ", " ++ show items ++ ")")
+    interpretOneByOne next
+
+
+
 
 -- Interpreter that batches commands
 interpretBatch :: D.Program a -> IO a
@@ -43,9 +46,10 @@ collectCommands (Pure _) = []
 collectCommands (Free (D.Create name qty unit next)) = ("create(" ++ name ++ ", " ++ show qty ++ ", " ++ unit ++ ")") : collectCommands next
 collectCommands (Free (D.Add ingName listName next)) = ("add(" ++ ingName ++ ", " ++ listName ++ ")") : collectCommands next
 collectCommands (Free (D.Remove ingName listName next)) = ("remove(" ++ ingName ++ ", " ++ listName ++ ")") : collectCommands next
-collectCommands (Free (D.Get name next)) = ("get(" ++ name ++ ")") : collectCommands (next "")
 collectCommands (Free (D.CreateEmptyList name next)) = ("create_empty_list(" ++ name ++ ")") : collectCommands next
 collectCommands (Free (D.Delete name next)) = ("delete(" ++ name ++ ")") : collectCommands next
+collectCommands (Free (D.CreateList name items next)) = ("create_list(" ++ name ++ ", " ++ show items ++ ")") : collectCommands next
+
 
 -- Interpreter for testing (in-memory)
 type InMemoryState = StateT [(String, String)] (ExceptT String IO)
@@ -61,17 +65,17 @@ interpretInMemory (Free (D.Add ingName listName next)) = do
 interpretInMemory (Free (D.Remove ingName listName next)) = do
     -- Implement in-memory remove logic
     interpretInMemory next
-interpretInMemory (Free (D.Get name next)) = do
-    state <- get
-    case lookup name state of
-        Just value -> interpretInMemory (next value)
-        Nothing -> throwError "Ingredient not found"
 interpretInMemory (Free (D.CreateEmptyList name next)) = do
     -- Implement in-memory create empty list logic
     interpretInMemory next
 interpretInMemory (Free (D.Delete name next)) = do
     modify (filter ((/= name) . fst))
     interpretInMemory next
+interpretInMemory (Free (D.CreateList name items next)) = do
+    -- Implement in-memory create list logic
+    interpretInMemory next
+
+
 
 main :: IO ()
 main = do
@@ -79,6 +83,9 @@ main = do
     let program = do
             D.create "apple" 42 "cup"
             D.add "apple" "fruits"
-            D.get "apple"
+            D.remove "apple" "fruits"
+            D.createEmptyList "vegetables"
+            D.delete "apple"
+            D.createList "groceries" [("banana", 5, "full"), ("milk", 2, "l")]
     result <- interpretOneByOne program
     print result
