@@ -43,8 +43,7 @@ interpretOneByOne (Free (D.Load next)) = do
 interpretBatch :: D.Program a -> IO String
 interpretBatch program = do
     let commands = collectCommands program
-    response <- W.post "http://localhost:3000" (pack $ unlines  ("BEGIN" : commands ++ ["END"]))
-    print response
+    _ <- W.post "http://localhost:3000" (pack $ unlines  ("BEGIN" : commands ++ ["END"]))
     return "Success"
 
 collectCommands :: D.Program a -> [String]
@@ -55,6 +54,20 @@ collectCommands (Free (D.Remove ingName listName next)) = ("remove(" ++ ingName 
 collectCommands (Free (D.CreateEmptyList name next)) = ("create_empty_list(" ++ name ++ ")") : collectCommands next
 collectCommands (Free (D.Delete name next)) = ("delete(" ++ name ++ ")") : collectCommands next
 collectCommands (Free (D.CreateList name items next)) = ("create_list(" ++ name ++ ", " ++ show items ++ ")") : collectCommands next
+collectCommands (Free (D.Save next)) = "save" : collectCommands next
+collectCommands (Free (D.Load next)) = "load" : collectCommands next
+
+interpretProgram :: D.Program a -> IO a
+interpretProgram program = do
+    let commands = collectCommands program
+    if length commands > 1
+        then do
+            putStrLn "Using batch interpreter"
+            interpretBatch program
+            return undefined -- Adjust this to return the correct type
+        else do
+            putStrLn "Using one-by-one interpreter"
+            interpretOneByOne program
 
 
 -- Interpreter for testing (in-memory)
@@ -66,21 +79,32 @@ interpretInMemory (Free (D.Create name qty unit next)) = do
     modify ((name, show qty ++ " " ++ unit) :)
     interpretInMemory next
 interpretInMemory (Free (D.Add ingName listName next)) = do
-    -- Implement in-memory add logic
+    modify (addToList ingName listName)
     interpretInMemory next
 interpretInMemory (Free (D.Remove ingName listName next)) = do
-    -- Implement in-memory remove logic
+    modify (removeFromList ingName listName)
     interpretInMemory next
 interpretInMemory (Free (D.CreateEmptyList name next)) = do
-    -- Implement in-memory create empty list logic
+    modify ((name, "") :)
     interpretInMemory next
 interpretInMemory (Free (D.Delete name next)) = do
     modify (filter ((/= name) . fst))
     interpretInMemory next
 interpretInMemory (Free (D.CreateList name items next)) = do
-    -- Implement in-memory create list logic
+    modify ((name, show items) :)
+    interpretInMemory next
+interpretInMemory (Free (D.Save next)) = do
+    -- Implement
+    interpretInMemory next
+interpretInMemory (Free (D.Load next)) = do
+    -- Implement
     interpretInMemory next
 
+addToList :: String -> String -> [(String, String)] -> [(String, String)]
+addToList ingName listName = map (\(name, items) -> if name == listName then (name, items ++ ", " ++ ingName) else (name, items))
+
+removeFromList :: String -> String -> [(String, String)] -> [(String, String)]
+removeFromList ingName listName = map (\(name, items) -> if name == listName then (name, unwords $ filter (/= ingName) (words items)) else (name, items))
 
 
 main :: IO ()
@@ -94,12 +118,19 @@ main = do
             D.add "apple" "fruits"
             D.remove "apple" "fruits"
             D.delete "apple"
-    _ <- interpretBatch program
+    _ <- interpretProgram program
     let program = do 
             D.create "banana" 100 "g"
+    _ <- interpretProgram program
+    let program = do
             D.add "banana" "fruits"
-    _ <- interpretOneByOne program
+    _ <- interpretProgram program        
     let program = do
             D.save
-    result <- interpretOneByOne program
+    result <- interpretProgram program
     print result
+
+    -- let program = do
+    --         D.load
+    -- result <- interpretProgram program
+    -- print result
