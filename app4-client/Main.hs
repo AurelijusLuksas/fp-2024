@@ -31,15 +31,21 @@ interpretOneByOne (Free (D.CreateList name items next)) = do
     _ <- W.post "http://localhost:3000" (pack $ "create_list(" ++ name ++ ", " ++ show items ++ ")")
     interpretOneByOne next
 
-
+interpretOneByOne (Free (D.Save next)) = do
+    _ <- W.post "http://localhost:3000" (pack "save")
+    interpretOneByOne next
+interpretOneByOne (Free (D.Load next)) = do
+    _ <- W.post "http://localhost:3000" (pack "load")
+    interpretOneByOne next
 
 
 -- Interpreter that batches commands
-interpretBatch :: D.Program a -> IO a
+interpretBatch :: D.Program a -> IO String
 interpretBatch program = do
     let commands = collectCommands program
-    _ <- W.post "http://localhost:3000" (pack $ unlines commands)
-    return undefined -- Handle the result appropriately
+    response <- W.post "http://localhost:3000" (pack $ unlines  ("BEGIN" : commands ++ ["END"]))
+    print response
+    return "Success"
 
 collectCommands :: D.Program a -> [String]
 collectCommands (Pure _) = []
@@ -82,10 +88,18 @@ main = do
     -- Example usage of the DSL
     let program = do
             D.create "apple" 42 "cup"
+            D.create "strawberry" 100 "g"
+            D.createEmptyList "fruits"
+            D.add "strawberry" "fruits"
             D.add "apple" "fruits"
             D.remove "apple" "fruits"
-            D.createEmptyList "vegetables"
             D.delete "apple"
-            D.createList "groceries" [("banana", 5, "full"), ("milk", 2, "l")]
+    _ <- interpretBatch program
+    let program = do 
+            D.create "banana" 100 "g"
+            D.add "banana" "fruits"
+    _ <- interpretOneByOne program
+    let program = do
+            D.save
     result <- interpretOneByOne program
     print result

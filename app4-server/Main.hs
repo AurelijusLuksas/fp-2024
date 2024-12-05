@@ -27,6 +27,8 @@ handleRequest request state chan = do
         Left err -> return $ "Error: " ++ err
         Right (command, _) -> do
             result <- stateTransition state command chan
+            currentState <- readTVarIO state
+            putStrLn $ "Current state: " ++ show currentState
             case result of
                 Left err -> return $ "Error: " ++ err
                 Right messages -> return $ unlines messages

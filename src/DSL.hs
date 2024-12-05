@@ -1,5 +1,16 @@
 {-# LANGUAGE DeriveFunctor #-}
-module DSL where
+module DSL (
+    Program,
+    Command(..),
+    create,
+    add,
+    remove,
+    createEmptyList,
+    delete,
+    createList,
+    save,
+    load
+) where
 
 import Control.Monad.Free (Free(..), liftF)
 import qualified Control.Monad.Trans.State.Strict as S (State, get, put, runState)
@@ -16,6 +27,8 @@ data Command next = Create String Int String next
                   | CreateEmptyList String next
                   | Delete String next
                   | CreateList String [(String, Int, String)] next
+                  | Save next
+                  | Load next
                   deriving Functor
 
 -- Define the Program type
@@ -40,3 +53,8 @@ delete name = liftF $ Delete name ()
 createList :: String -> [(String, Int, String)] -> Program ()
 createList name items = liftF $ CreateList name items ()
 
+save :: Program ()
+save = liftF $ Save ()
+
+load :: Program ()
+load = liftF $ Load ()
