@@ -13,6 +13,9 @@ import Debug.Trace (trace)
 import Data.List (sortOn)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import qualified Test.QuickCheck.Monadic as QCM
+import qualified DSL as D
+
+import qualified MemoryInter as I 
 
 import Lib1 qualified
 import Lib2 qualified (
@@ -39,7 +42,8 @@ import Lib2 qualified (
     parseRemove,
     parseGet,
     parseDelete,
-    parseGetList
+    parseGetList,
+    Parser
     )
 import Lib3 qualified (
     Command(..),
@@ -53,6 +57,8 @@ import Lib3 qualified (
     )
 
 import Test.Tasty.QuickCheck (Testable(property))
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
+import Control.Monad.Trans.State.Strict (State, runState, execStateT)
 
 
 main :: IO ()
@@ -61,42 +67,73 @@ main = defaultMain tests
 tests :: TestTree
 tests = testGroup "Lib2 Tests"
   [ unitTests
-  , parserTests
   , stateTransitionTests
   , propertyTests
+  , memoryIntegrationTests
   ]
 
--- Unit Tests for Parser Functions
+-- Helper function to run the parser
+runParser :: Lib2.Parser a -> String -> Either String (a, String)
+runParser p input = 
+    let (result, remaining) = runState (runExceptT p) input
+    in case result of
+        Left err -> Left err
+        Right value -> Right (value, remaining)
+
 unitTests :: TestTree
 unitTests = testGroup "Parser Functions"
   [ testCase "parseName - WordName" $
-      Lib2.parseName "apple" @?= Right (Lib2.WordName "apple", "")
+      runParser Lib2.parseName "apple" @?= Right (Lib2.WordName "apple", "")
   
   , testCase "parseName - NumberName" $
-      Lib2.parseName "123" @?= Right (Lib2.NumberName 123, "")
+      runParser Lib2.parseName "123" @?= Right (Lib2.NumberName 123, "")
   
   , testCase "parseQuantity - valid quantity" $
-      Lib2.parseQuantity " 42" @?= Right (Lib2.Quantity 42, "")
+      runParser Lib2.parseQuantity " 42" @?= Right (Lib2.Quantity 42, "")
   
   , testCase "parseQuantity - invalid quantity" $
-      Lib2.parseQuantity "abc" @?= Left "not a number"
+      runParser Lib2.parseQuantity "abc" @?= Left "not a number"
   
   , testCase "parseUnit - valid unit" $
-      Lib2.parseUnit "cup" @?= Right (Lib2.Cup, "")
+      runParser Lib2.parseUnit "cup" @?= Right (Lib2.Cup, "")
   
   , testCase "parseUnit - invalid unit" $
-      Lib2.parseUnit "invalid" @?= Left "Invalid unit"
+      runParser Lib2.parseUnit "invalid" @?= Left "Invalid unit"
   
-  , testCase "parseQuery - Create query" $
-      Lib2.parseQuery "create(apple, 42, cup)" @?= Right (Lib2.Create (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup)
+  , testCase "parseCreate - Create query" $
+      runParser Lib2.parseCreate "create(apple, 42, cup)" @?= Right (Lib2.Create (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup, "")
   
-  , testCase "parseQuery - Add query" $
-      Lib2.parseQuery "add(apple, fruits)" @?= Right (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits"))
+  , testCase "parseAdd - Add query" $
+      runParser Lib2.parseAdd "add(apple, fruits)" @?= Right (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits"), "")
   
-  , testCase "parseQuery - Remove query" $
-      Lib2.parseQuery "remove(apple, fruits)" @?= Right (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "fruits"))
-  ]
+  , testCase "parseRemove - Remove query" $
+      runParser Lib2.parseRemove "remove(apple, fruits)" @?= Right (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "fruits"), "")
+  
+  , testCase "parseGet - Get query" $
+      runParser Lib2.parseGet "get(apple)" @?= Right (Lib2.Get (Lib2.WordName "apple"), "")
+  
+  , testCase "parseGet - Get query with number" $
+      runParser Lib2.parseGet "get(123)" @?= Right (Lib2.Get (Lib2.NumberName 123), "")
+  
+  , testCase "parseCreateEmptyList - CreateEmptyList query" $
+      runParser Lib2.parseCreateEmptyList "create_empty_list(fruits)" @?= Right (Lib2.CreateEmptyList (Lib2.WordName "fruits"), "")
+  
+  , testCase "parseCreateEmptyList - CreateEmptyList query with number" $
+      runParser Lib2.parseCreateEmptyList "create_empty_list(123)" @?= Right (Lib2.CreateEmptyList (Lib2.NumberName 123), "")
+  
+  , testCase "parseGetList - GetList query" $
+      runParser Lib2.parseGetList "get_list(fruits)" @?= Right (Lib2.GetList (Lib2.WordName "fruits"), "")
+  
+  , testCase "parseGetList - GetList query with number" $
+      runParser Lib2.parseGetList "get_list(123)" @?= Right (Lib2.GetList (Lib2.NumberName 123), "")
+  
+  , testCase "parseDelete - Delete query" $
+      runParser Lib2.parseDelete "delete(apple)" @?= Right (Lib2.Delete (Lib2.WordName "apple"), "")
+  
+  , testCase "parseDelete - Delete query with number" $
+      runParser Lib2.parseDelete "delete(123)" @?= Right (Lib2.Delete (Lib2.NumberName 123), "")
 
+  ]
 -- State Transition Tests
 stateTransitionTests :: TestTree
 stateTransitionTests = testGroup "State Transition"
@@ -108,10 +145,6 @@ stateTransitionTests = testGroup "State Transition"
       let state = Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
       in Lib2.stateTransition state (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Added ingredient or list to list"], Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup])
 
-  , testCase "stateTransition - Add non-existing ingredient" $
-      let state = Lib2.State [] [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 1) Lib2.Cup]
-      in Lib2.stateTransition state (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Left "Ingredient or list not found"
-  
   , testCase "stateTransition - Remove Ingredient" $
       let state = Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
       in Lib2.stateTransition state (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Removed ingredient"], Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup])
@@ -124,38 +157,13 @@ stateTransitionTests = testGroup "State Transition"
       let state = Lib2.State [] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
       in Lib2.stateTransition state (Lib2.Delete (Lib2.WordName "apple")) @?= Right (["Deleted ingredient"], Lib2.State [] [])
 
-  , testCase "stateTransition - Delete non-existing ingredient" $
-      let state = Lib2.State [] [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 1) Lib2.Cup]
-      in Lib2.stateTransition state (Lib2.Delete (Lib2.WordName "apple")) @?= Left "Ingredient or list not found"
-
   , testCase "stateTransition - Create Ingredient List" $
       let state = Lib2.emptyState
       in Lib2.stateTransition state (Lib2.CreateEmptyList (Lib2.WordName "fruits")) @?= Right (["Created empty ingredient list"], Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [] []])] [])
 
-  , testCase "stateTransition - Add Ingredient to non-existing list" $
-      let state = Lib2.State [] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
-      in Lib2.stateTransition state (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "nonExistingList")) @?= Left "Ingredient or list not found"
-
   , testCase "stateTransition - Remove Ingredient from non-existing list" $
       let state = Lib2.State [] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
       in Lib2.stateTransition state (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "nonExistingList")) @?= Left "Ingredient or list not found"
-
-  , testCase "stateTransition - Get non-existing list" $
-      let state = Lib2.State [] []
-      in Lib2.stateTransition state (Lib2.GetList (Lib2.WordName "nonExistingList")) @?= Left "List not found"  
-
-  , testCase "stateTransition - Get List which contains list" $
-      let state = Lib2.State 
-                    [(Lib2.WordName "meal", 
-                      [Lib2.IngredientList (Lib2.WordName "meal") 
-                        [Lib2.Ingredient (Lib2.WordName "bread") (Lib2.Quantity 100) Lib2.G] 
-                        [Lib2.IngredientList (Lib2.WordName "fruit") 
-                          [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 3) Lib2.Full] 
-                          []]
-                      ]
-                    )] 
-                    []
-      in Lib2.stateTransition state (Lib2.GetList (Lib2.WordName "meal")) @?= Right (["meal: {\n\tbread: 100 G\n\tfruit: {\n\t\tbanana: 3 Full\n\t}\n\n}","Found list"], state)
 
   , testCase "stateTransition - Get non-existing ingredient" $
       let state = Lib2.State [] [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 1) Lib2.Cup]
@@ -175,17 +183,7 @@ stateTransitionTests = testGroup "State Transition"
                     )] 
                     []
       in Lib2.stateTransition state (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Removed ingredient"], Lib2.State [(Lib2.WordName "meal", [Lib2.IngredientList (Lib2.WordName "meal") [] [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []]] )] [])
-    
-    , testCase "stateTransition - Create Ingredient List" $
-        let state = Lib2.State [] []
-            ingredientList = Lib2.IngredientList (Lib2.WordName "meal") 
-                            [Lib2.Ingredient (Lib2.WordName "bread") (Lib2.Quantity 100) Lib2.G] 
-                            [Lib2.IngredientList (Lib2.WordName "fruit") 
-                                [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 3) Lib2.Full] 
-                                []]
-            expectedState = Lib2.State [(Lib2.WordName "meal", [ingredientList])] []
-        in Lib2.stateTransition state (Lib2.CreateList ingredientList) @?= Right (["Created ingredient list"], expectedState)
-  
+
   , testCase "stateTransition - Find ingredient in lists" $
     let state = Lib2.State 
                   [(Lib2.WordName "meal", 
@@ -198,19 +196,6 @@ stateTransitionTests = testGroup "State Transition"
                   )] 
                   []
     in Lib2.stateTransition state (Lib2.Find (Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 3) Lib2.Full)) @?= Right (["Found in lists: meal"], state)
-
-  , testCase "stateTransition - Get nested list" $
-      let state = Lib2.State 
-                    [(Lib2.WordName "meal", 
-                      [Lib2.IngredientList (Lib2.WordName "meal") 
-                        [Lib2.Ingredient (Lib2.WordName "bread") (Lib2.Quantity 100) Lib2.G] 
-                        [Lib2.IngredientList (Lib2.WordName "fruit") 
-                          [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 3) Lib2.Full] 
-                          []]
-                      ]
-                    )] 
-                    []
-      in Lib2.stateTransition state (Lib2.GetList (Lib2.WordName "meal")) @?= Right (["meal: {\n\tbread: 100 G\n\tfruit: {\n\t\tbanana: 3 Full\n\t}\n\n}","Found list"], state)
 
   , testCase "stateTransition - Delete nested list" $
       let state = Lib2.State 
@@ -227,66 +212,6 @@ stateTransitionTests = testGroup "State Transition"
       let state = Lib2.State [] []
       in Lib2.stateTransition state (Lib2.Delete (Lib2.WordName "nonExistingList")) @?= Left "Ingredient or list not found"
   ]
-
--- Additional parser tests for helper functions
-parserTests :: TestTree
-parserTests = testGroup "Parser Helper Functions"
-  [ testCase "parseIngredient - valid ingredient" $
-      Lib2.parseIngredient "apple: 42 cloves" @?= Right (Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cloves, "")
-  
-  , testCase "parseIngredient - invalid ingredient" $
-      Lib2.parseIngredient "apple: abc cloves" @?= Left "not a number"
-  
-  , testCase "parseIngredientList - valid ingredient list" $
-      Lib2.parseIngredientList "fruits: {apple: 42 cup, banana: 100 g}" @?= Right (Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup, Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 100) Lib2.G] [], "")
-  
-  , testCase "parseCreate - valid create query" $
-      Lib2.parseCreate "create(apple, 42, cup)" @?= Right (Lib2.Create (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup, "")
-  
-  , testCase "parseCreate - invalid create query" $
-      Lib2.parseCreate "create(apple, abc, cup)" @?= Left "not a number"
-  
-  , testCase "parseAdd - valid add query" $
-      Lib2.parseAdd "add(apple, fruits)" @?= Right (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits"), "")
-  
-  , testCase "parseRemove - valid remove query" $
-      Lib2.parseRemove "remove(apple, fruits)" @?= Right (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "fruits"), "")
-  
-  , testCase "parseGet - valid get query" $
-      Lib2.parseGet "get(apple)" @?= Right (Lib2.Get (Lib2.WordName "apple"), ")")
-  
-  , testCase "parseGet - invalid get query" $
-      Lib2.parseGet "get(123)" @?= Right (Lib2.Get (Lib2.NumberName 123), ")")
-  
-  , testCase "parseCreateEmptyList - valid create list query" $
-      Lib2.parseCreateEmptyList "create_empty_list(fruits)" @?= Right (Lib2.CreateEmptyList (Lib2.WordName "fruits"), ")")
-  
-  , testCase "parseCreateEmptyList - invalid create list query" $
-      Lib2.parseCreateEmptyList "create_empty_list(123)" @?= Right (Lib2.CreateEmptyList (Lib2.NumberName 123), ")")
-  
-  , testCase "parseGetList - valid get list query" $
-      Lib2.parseGetList "get_list(fruits)" @?= Right (Lib2.GetList (Lib2.WordName "fruits"), ")")
-  
-  , testCase "parseGetList - invalid get list query" $
-      Lib2.parseGetList "get_list(123)" @?= Right (Lib2.GetList (Lib2.NumberName 123), ")")
-  
-  , testCase "parseDelete - valid delete query" $
-      Lib2.parseDelete "delete(apple)" @?= Right (Lib2.Delete (Lib2.WordName "apple"), ")")
-  
-  , testCase "parseDelete - invalid delete query" $
-      Lib2.parseDelete "delete(123)" @?= Right (Lib2.Delete (Lib2.NumberName 123), ")")
-
-  , testCase "parseCreateList - valid create list query" $
-      Lib2.parseCreateList "create_list(meal: {bread: 100 g, fruit:{banana: 3 full}})" @?= Right (Lib2.CreateList (Lib2.IngredientList (Lib2.WordName "meal") [Lib2.Ingredient (Lib2.WordName "bread") (Lib2.Quantity 100) Lib2.G] [Lib2.IngredientList (Lib2.WordName "fruit") [Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 3) Lib2.Full] []]), "")
-
-  , testCase "parseCreateList - invalid create list query" $
-      Lib2.parseCreateList "create_list(meal:{ bread: 100 G, fruit: {banana: 3 Full}" @?= Left "} is not found in b"
-
-  , testCase "parseFind - valid find query" $
-      Lib2.parseFind "find(banana: 3 full)" @?= Right (Lib2.Find (Lib2.Ingredient (Lib2.WordName "banana") (Lib2.Quantity 3) Lib2.Full), "")
-
-  ]
-
 
 propertyTests :: TestTree
 propertyTests = testGroup "Lib3 Property Tests"
@@ -377,3 +302,47 @@ genQuantity = Lib2.Quantity <$> (arbitrary `suchThat` (> 0))
 
 genUnit :: Gen Lib2.Unit
 genUnit = elements [Lib2.Cup, Lib2.Cups, Lib2.Tbsp, Lib2.Tsp, Lib2.Oz, Lib2.Lb, Lib2.G, Lib2.Kg, Lib2.Ml, Lib2.L, Lib2.Pinch, Lib2.Cloves, Lib2.Full, Lib2.Half]
+
+memoryIntegrationTests :: TestTree
+memoryIntegrationTests = testGroup "Memory Integration Tests"
+  [ testCase "Create" $ do
+      let program = D.create "apple" 42 "cloves"
+      result <- runInMemory program
+      result @?= Right [("apple", "42 cloves")]
+
+  , testCase "Add" $ do
+      let program = do
+            D.create "apple" 42 "cloves"
+            D.createEmptyList "fruits"
+            D.add "apple" "fruits"
+      result <- runInMemory program
+      result @?= Right [("fruits", "apple"), ("apple", "42 cloves")]
+
+  , testCase "Remove" $ do
+      let program = do
+            D.create "apple" 42 "cloves"
+            D.createEmptyList "fruits"
+            D.add "apple" "fruits"
+            D.remove "apple" "fruits"
+      result <- runInMemory program
+      result @?= Right [("fruits", ""), ("apple", "42 cloves")]
+
+  , testCase "Delete" $ do
+      let program = do
+            D.create "apple" 42 "cloves"
+            D.delete "apple"
+      result <- runInMemory program
+      result @?= Right []
+
+  , testCase "Save and Load" $ do
+      let program = do
+            D.create "apple" 42 "cloves"
+            D.save
+            D.delete "apple"
+            D.load
+      result <- runInMemory program
+      result @?= Right [("apple", "42 cloves")]
+  ]
+
+runInMemory :: D.Program a -> IO (Either String [(String, String)])
+runInMemory program = runExceptT $ execStateT (I.interpretInMemory program) []

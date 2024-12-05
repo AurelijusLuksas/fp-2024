@@ -25,7 +25,8 @@ module Lib2 (
     parseRemove,
     parseGet,
     parseDelete,
-    parseGetList
+    parseGetList,
+    Parser
 ) where
 
 import qualified Control.Monad.Trans.State.Strict as S (State, get, put, runState)
@@ -161,14 +162,6 @@ and3' f a b c = do
     v2 <- b
     v3 <- c
     return $ f v1 v2 v3
-
-and4' :: (a -> b -> c -> d -> e) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e
-and4' f a b c d = do
-    v1 <- a
-    v2 <- b
-    v3 <- c
-    v4 <- d
-    return $ f v1 v2 v3 v4
 
 and5' :: (a -> b -> c -> d -> e -> f) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f
 and5' f a b c d e = do

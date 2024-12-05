@@ -5,9 +5,11 @@ import qualified Network.Wreq as W
 import Data.String.Conversions (cs)
 import Control.Lens
 import Control.Monad.Free (Free(..))
-import Control.Monad.State (StateT, get, modify)
+import Control.Monad.State (StateT, get, modify, MonadState (state))
 import Control.Monad.Except (ExceptT, throwError, runExceptT)
+import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
+import qualified MemoryInter as I
 
 -- Interpreter that sends requests one-by-one
 interpretOneByOne :: D.Program a -> IO a
@@ -68,43 +70,6 @@ interpretProgram program = do
         else do
             putStrLn "Using one-by-one interpreter"
             interpretOneByOne program
-
-
--- Interpreter for testing (in-memory)
-type InMemoryState = StateT [(String, String)] (ExceptT String IO)
-
-interpretInMemory :: D.Program a -> InMemoryState a
-interpretInMemory (Pure a) = return a
-interpretInMemory (Free (D.Create name qty unit next)) = do
-    modify ((name, show qty ++ " " ++ unit) :)
-    interpretInMemory next
-interpretInMemory (Free (D.Add ingName listName next)) = do
-    modify (addToList ingName listName)
-    interpretInMemory next
-interpretInMemory (Free (D.Remove ingName listName next)) = do
-    modify (removeFromList ingName listName)
-    interpretInMemory next
-interpretInMemory (Free (D.CreateEmptyList name next)) = do
-    modify ((name, "") :)
-    interpretInMemory next
-interpretInMemory (Free (D.Delete name next)) = do
-    modify (filter ((/= name) . fst))
-    interpretInMemory next
-interpretInMemory (Free (D.CreateList name items next)) = do
-    modify ((name, show items) :)
-    interpretInMemory next
-interpretInMemory (Free (D.Save next)) = do
-    -- Implement
-    interpretInMemory next
-interpretInMemory (Free (D.Load next)) = do
-    -- Implement
-    interpretInMemory next
-
-addToList :: String -> String -> [(String, String)] -> [(String, String)]
-addToList ingName listName = map (\(name, items) -> if name == listName then (name, items ++ ", " ++ ingName) else (name, items))
-
-removeFromList :: String -> String -> [(String, String)] -> [(String, String)]
-removeFromList ingName listName = map (\(name, items) -> if name == listName then (name, unwords $ filter (/= ingName) (words items)) else (name, items))
 
 
 main :: IO ()

@@ -43,6 +43,7 @@ library:
   - QuickCheck
   - transformers
   - strict
+  - mtl
 
 executables:
   fp2024-one:
@@ -122,6 +123,7 @@ tests:
     dependencies:
     - fp2024
     - tasty
+    - transformers
     - tasty-hunit
     - tasty-quickcheck
     - stm
