@@ -108,18 +108,15 @@ marshallState (Lib2.State ingredientLists ingredients) =
         allQueries = ingredientQueries ++ createListQueries ++ addListQueries
     in Batch allQueries
 
--- Helper function to convert an Ingredient to a Create query
 ingredientToQuery :: Lib2.Ingredient -> Lib2.Query
 ingredientToQuery (Lib2.Ingredient name qty unit) = Lib2.Create name qty unit
 
--- Helper function to convert an IngredientList to a list of queries
 listToQueries :: (Lib2.Name, [Lib2.IngredientList]) -> [Lib2.Query]
 listToQueries (name, lists) = 
     let createListQuery = Lib2.CreateEmptyList name
         addQueries = concatMap (ingredientListToQueries name) lists
     in createListQuery : addQueries
 
--- Helper function to convert an IngredientList to a list of Add queries
 ingredientListToQueries :: Lib2.Name -> Lib2.IngredientList -> [Lib2.Query]
 ingredientListToQueries parentName (Lib2.IngredientList name ingredients sublists) =
     let addIngredientQueries = map (\(Lib2.Ingredient ingName qty unit) -> Lib2.Add ingName parentName) ingredients
@@ -127,17 +124,14 @@ ingredientListToQueries parentName (Lib2.IngredientList name ingredients sublist
         nestedSublistQueries = concatMap (ingredientListToQueries name) sublists
     in addIngredientQueries ++ addSublistQueries ++ nestedSublistQueries
 
--- Helper function to check if a query is CreateEmptyList
 isCreateEmptyListQuery :: Lib2.Query -> Bool
 isCreateEmptyListQuery (Lib2.CreateEmptyList _) = True
 isCreateEmptyListQuery _ = False
 
--- Helper function to render Statements into a String
 renderStatements :: Statements -> String
 renderStatements (Batch queries) = "BEGIN\n" ++ unlines (map renderQuery queries) ++ "END"
 renderStatements (Single query) = renderQuery query
 
--- Helper function to convert a Query to a String
 renderQuery :: Lib2.Query -> String
 renderQuery (Lib2.Create name qty unit) = "create(" ++ renderName name ++ ", " ++ renderQuantity qty ++ ", " ++ renderUnit unit ++ ")"
 renderQuery (Lib2.Add ingName listName) = "add(" ++ renderName ingName ++ ", " ++ renderName listName ++ ")"
@@ -150,11 +144,9 @@ renderQuery (Lib2.GetList name) = "get_list(" ++ renderName name ++ ")"
 renderQuery (Lib2.Delete name) = "delete(" ++ renderName name ++ ")"
 renderQuery (Lib2.Find ingredient) = "find(" ++ renderIngredient ingredient ++ ")"
 
--- Helper function to convert Quantity to String
 renderQuantity :: Lib2.Quantity -> String
 renderQuantity (Lib2.Quantity n) = show n
 
--- Helper functions to convert Name, Quantity, Unit, Ingredient, and IngredientList to String
 renderName :: Lib2.Name -> String
 renderName (Lib2.NumberName n) = show n
 renderName (Lib2.WordName w) = w

@@ -66,7 +66,7 @@ interpretProgram program = do
         then do
             putStrLn "Using batch interpreter"
             interpretBatch program
-            return undefined -- Adjust this to return the correct type
+            return undefined 
         else do
             putStrLn "Using one-by-one interpreter"
             interpretOneByOne program
@@ -75,31 +75,31 @@ interpretProgram program = do
 main :: IO ()
 main = do
     -- Example usage of the DSL
-    -- let program = do
-    --         D.create "apple" 42 "cup"
-    --         D.create "strawberry" 100 "g"
-    --         D.createEmptyList "fruits"
-    --         D.add "strawberry" "fruits"
-    --         D.add "apple" "fruits"
-    --         D.remove "apple" "fruits"
-    --         D.delete "apple"
-    --         D.createEmptyList "meal"
-    --         D.create "bread" 200 "g"
-    --         D.add "bread" "meal"
-    --         D.addList "fruits" "meal"
-    -- _ <- interpretProgram program
-    -- let program = do 
-    --         D.create "banana" 100 "g"
-    -- _ <- interpretProgram program
-    -- let program = do
-    --         D.add "banana" "fruits"
-    -- _ <- interpretProgram program        
-    -- let program = do
-    --         D.save
-    -- result <- interpretProgram program
-    -- print result
-
     let program = do
-            D.load
+            D.create "apple" 42 "cup"
+            D.create "strawberry" 100 "g"
+            D.createEmptyList "fruits"
+            D.add "strawberry" "fruits"
+            D.add "apple" "fruits"
+            D.remove "apple" "fruits"
+            D.delete "apple"
+            D.createEmptyList "meal"
+            D.create "bread" 200 "g"
+            D.add "bread" "meal"
+            D.addList "fruits" "meal"
+    _ <- interpretProgram program
+    let program = do 
+            D.create "banana" 100 "g"
+    _ <- interpretProgram program
+    let program = do
+            D.add "banana" "fruits"
+    _ <- interpretProgram program        
+    let program = do
+            D.save
     result <- interpretProgram program
     print result
+
+    -- let program = do
+    --         D.load
+    -- result <- interpretProgram program
+    -- print result
