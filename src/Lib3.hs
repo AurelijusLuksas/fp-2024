@@ -15,11 +15,11 @@ import Control.Concurrent ( Chan, readChan, writeChan, newChan )
 import Control.Concurrent.STM ( STM, TVar, atomically, newTVarIO, readTVar, writeTVar, readTVarIO )
 import Control.Exception ( SomeException, try )
 import qualified Lib2
-import Data.List ( isPrefixOf, isSuffixOf, lines )
+import Data.List ( isPrefixOf, isSuffixOf, lines, partition )
 import Data.Either ( partitionEithers )
 import Data.Char (isSpace)
 import Control.Monad (foldM)
-import Prelude ( String, IO, Either(..), Maybe(..), Char, Show, Eq, foldr, show, (++), (.), lines, reverse, dropWhile, map, concatMap, unlines, null, not, filter, length, take, drop, otherwise, ($), (==), any, elem, concat, return, putStrLn, error, writeFile, readFile, (-), head, tail, fst, either )
+import Prelude ( String, IO, Either(..), Maybe(..), Char, Show, Eq, Bool(..), foldr, show, (++), (.), lines, reverse, dropWhile, map, concatMap, unlines, null, not, filter, length, take, drop, otherwise, ($), (==), any, elem, concat, return, putStrLn, error, writeFile, readFile, (-), head, tail, fst, either )
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
 
@@ -104,7 +104,8 @@ marshallState :: Lib2.State -> Statements
 marshallState (Lib2.State ingredientLists ingredients) =
     let ingredientQueries = map ingredientToQuery ingredients
         listQueries = concatMap listToQueries ingredientLists
-        allQueries = ingredientQueries ++ listQueries
+        (createListQueries, addListQueries) = partition isCreateEmptyListQuery listQueries
+        allQueries = ingredientQueries ++ createListQueries ++ addListQueries
     in Batch allQueries
 
 -- Helper function to convert an Ingredient to a Create query
@@ -122,8 +123,14 @@ listToQueries (name, lists) =
 ingredientListToQueries :: Lib2.Name -> Lib2.IngredientList -> [Lib2.Query]
 ingredientListToQueries parentName (Lib2.IngredientList name ingredients sublists) =
     let addIngredientQueries = map (\(Lib2.Ingredient ingName qty unit) -> Lib2.Add ingName parentName) ingredients
-        addSublistQueries = concatMap (ingredientListToQueries name) sublists
-    in addIngredientQueries ++ addSublistQueries
+        addSublistQueries = map (\(Lib2.IngredientList sublistName _ _) -> Lib2.AddList sublistName parentName) sublists
+        nestedSublistQueries = concatMap (ingredientListToQueries name) sublists
+    in addIngredientQueries ++ addSublistQueries ++ nestedSublistQueries
+
+-- Helper function to check if a query is CreateEmptyList
+isCreateEmptyListQuery :: Lib2.Query -> Bool
+isCreateEmptyListQuery (Lib2.CreateEmptyList _) = True
+isCreateEmptyListQuery _ = False
 
 -- Helper function to render Statements into a String
 renderStatements :: Statements -> String
@@ -134,6 +141,7 @@ renderStatements (Single query) = renderQuery query
 renderQuery :: Lib2.Query -> String
 renderQuery (Lib2.Create name qty unit) = "create(" ++ renderName name ++ ", " ++ renderQuantity qty ++ ", " ++ renderUnit unit ++ ")"
 renderQuery (Lib2.Add ingName listName) = "add(" ++ renderName ingName ++ ", " ++ renderName listName ++ ")"
+renderQuery (Lib2.AddList listName lisName ) = "add_list(" ++ renderName listName ++ ", " ++ renderName lisName ++ ")"
 renderQuery (Lib2.Remove ingName listName) = "remove(" ++ renderName ingName ++ ", " ++ renderName listName ++ ")"
 renderQuery (Lib2.Get name) = "get(" ++ renderName name ++ ")"
 renderQuery (Lib2.CreateList ingList) = "create_list(" ++ renderIngredientList ingList ++ ")"

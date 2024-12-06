@@ -4,10 +4,10 @@ module DSL (
     Command(..),
     create,
     add,
+    addList,
     remove,
     createEmptyList,
     delete,
-    createList,
     save,
     load
 ) where
@@ -23,10 +23,10 @@ import Data.List (isPrefixOf)
 -- Define the DSL commands
 data Command next = Create String Int String next
                   | Add String String next
+                  | AddList String String next
                   | Remove String String next
                   | CreateEmptyList String next
                   | Delete String next
-                  | CreateList String [(String, Int, String)] next
                   | Save next
                   | Load next
                   deriving Functor
@@ -41,6 +41,9 @@ create name qty unit = liftF $ Create name qty unit ()
 add :: String -> String -> Program ()
 add ingName listName = liftF $ Add ingName listName ()
 
+addList :: String -> String -> Program ()
+addList listName lisName = liftF $ AddList listName lisName ()
+
 remove :: String -> String -> Program ()
 remove ingName listName = liftF $ Remove ingName listName ()
 
@@ -49,9 +52,6 @@ createEmptyList name = liftF $ CreateEmptyList name ()
 
 delete :: String -> Program ()
 delete name = liftF $ Delete name ()
-
-createList :: String -> [(String, Int, String)] -> Program ()
-createList name items = liftF $ CreateList name items ()
 
 save :: Program ()
 save = liftF $ Save ()

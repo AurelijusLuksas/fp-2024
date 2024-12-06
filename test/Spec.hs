@@ -59,6 +59,7 @@ import Lib3 qualified (
 import Test.Tasty.QuickCheck (Testable(property))
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Control.Monad.Trans.State.Strict (State, runState, execStateT)
+import Test.QuickCheck.Test (test)
 
 
 main :: IO ()
@@ -143,7 +144,7 @@ stateTransitionTests = testGroup "State Transition"
 
  , testCase "stateTransition - Add existing ingredient" $
       let state = Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
-      in Lib2.stateTransition state (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Added ingredient or list to list"], Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup])
+      in Lib2.stateTransition state (Lib2.Add (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Added ingredient to list"], Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup])
 
   , testCase "stateTransition - Remove Ingredient" $
       let state = Lib2.State [(Lib2.WordName "fruits", [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []])] [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup]
@@ -182,7 +183,7 @@ stateTransitionTests = testGroup "State Transition"
                       ]
                     )] 
                     []
-      in Lib2.stateTransition state (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Removed ingredient"], Lib2.State [(Lib2.WordName "meal", [Lib2.IngredientList (Lib2.WordName "meal") [] [Lib2.IngredientList (Lib2.WordName "fruits") [Lib2.Ingredient (Lib2.WordName "apple") (Lib2.Quantity 42) Lib2.Cup] []]] )] [])
+      in Lib2.stateTransition state (Lib2.Remove (Lib2.WordName "apple") (Lib2.WordName "fruits")) @?= Right (["Removed ingredient"], Lib2.State [(Lib2.WordName "meal", [Lib2.IngredientList (Lib2.WordName "meal") [] [Lib2.IngredientList (Lib2.WordName "fruits") [] []]] )] [])
 
   , testCase "stateTransition - Find ingredient in lists" $
     let state = Lib2.State 
@@ -326,6 +327,16 @@ memoryIntegrationTests = testGroup "Memory Integration Tests"
             D.remove "apple" "fruits"
       result <- runInMemory program
       result @?= Right [("fruits", ""), ("apple", "42 cloves")]
+
+  , testCase "AddList" $ do
+      let program = do
+            D.create "apple" 42 "cloves"
+            D.createEmptyList "fruits"
+            D.add "apple" "fruits"
+            D.createEmptyList "meal"
+            D.addList "fruits" "meal"
+      result <- runInMemory program
+      result @?= Right [("meal", "fruits"), ("fruits", "apple"), ("apple", "42 cloves")]
 
   , testCase "Delete" $ do
       let program = do

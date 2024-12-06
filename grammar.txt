@@ -5,8 +5,6 @@
 <load_commands> ::= 'load'
 <save_commands> ::= 'save'
 
-
-
 <ingredient_list> ::= <name> ": {" <more_items> "}" 
 <more_items> ::= <ingredient> ", " <more_items> | <ingredient_list> ", " <more_items> | <ingredient> | <ingredient_list>
 <ingredient> ::= <name> ": " <quantity> " " <unit>
@@ -20,22 +18,24 @@
 
 <commands> ::= <create> 
             | <add> 
+            | <add_list>
             | <remove> 
             | <get>  
             | <create_list> 
             | <get_list> 
             | <delete> 
-            | create_empty_list> 
+            | <create_empty_list> 
             | <find> 
             | <load_commands> 
             | <save_commands>
 
 <create> ::= "create (" <name> ", " <quantity> ", " <unit> ")"
 <add> ::= "add (" <name> ", " <name> ")"
+<add_list> ::= "add_list (" <name> ", " <name> ")"
 <remove> ::= "remove (" <name> ", " <name> ")" 
 <get> ::= "get (" <name> ")" 
 <create_list> ::= "create_list (" <ingredient_list> ")"
-create_empty_list ::= "create_empty_list (" <name> ")"
-find ::= "find(" <ingredient> ")" 
+<create_empty_list> ::= "create_empty_list (" <name> ")"
+<find> ::= "find(" <ingredient> ")" 
 <get_list> ::= "get_list (" <name> ")" 
 <delete> ::= "delete (" <name> ")"

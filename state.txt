@@ -1,7 +1,13 @@
 BEGIN
 create(banana, 100, g)
+create(bread, 200, g)
 create(strawberry, 100, g)
+create_empty_list(meal)
 create_empty_list(fruits)
+add(bread, meal)
+add_list(fruits, meal)
+add(banana, meal)
+add(strawberry, meal)
 add(banana, fruits)
 add(strawberry, fruits)
 END

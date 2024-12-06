@@ -39,11 +39,11 @@ type Parser a = ExceptT String (S.State String) a
 
 -- Define the Name data type
 data Name = NumberName Int | WordName String | StringName String
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 -- Define the Quantity and Unit data types
 newtype Quantity = Quantity Int
-    deriving (Show, Eq)
+    deriving ( Eq)
 
 data Unit = Cup | Cups | Tbsp | Tsp | Oz | Lb | G | Kg | Ml | L | Pinch | Cloves | Full | Half
     deriving (Show, Eq)
@@ -53,13 +53,14 @@ data Ingredient = Ingredient Name Quantity Unit
     deriving (Show, Eq)
 
 -- Define the IngredientList data type
-data IngredientList = IngredientList Name [Ingredient] [IngredientList] 
+data IngredientList = IngredientList Name [Ingredient] [IngredientList]
     deriving (Show, Eq)
 
 -- Define the Query data type
 data Query
     = Create Name Quantity Unit
     | Add Name Name
+    | AddList Name Name
     | Remove Name Name
     | Get Name
     | CreateList IngredientList
@@ -89,26 +90,60 @@ stateTransition (State lists ings) (Create name qty unit) =
     in Right (["Created ingredient"], State lists (newIng : ings))
 
 stateTransition (State lists ings) (Add ingName listName) =
-    let updatedLists = map (\(name, items) -> if name == listName then (name, addToList ingName items) else (name, items)) lists
-        addToList ingName items =
-            case find (\(Ingredient n _ _) -> n == ingName) ings of
-                Just ing -> addIngredientToList ing items
-                Nothing -> case lookup ingName lists of
-                    Just sublist -> addSublistToList sublist items
-                    Nothing -> items
-        addIngredientToList ing [] = []
-        addIngredientToList ing (IngredientList n is sublists : rest) =
-            IngredientList n (ing : is) sublists : rest
+    let updatedLists = map (updateList ingName listName) lists
+        updateList ingName listName (name, items) =
+            if name == listName
+            then (name, map (addToList ingName) items)
+            else (name, map (updateSubList ingName listName) items)
+        addToList ingName (IngredientList n is sublists) =
+            IngredientList n (case find (\(Ingredient n _ _) -> n == ingName) ings of
+                Just ing -> ing : is
+                Nothing -> is) sublists
+        updateSubList ingName listName (IngredientList n is sublists) =
+            if n == listName
+            then IngredientList n (case find (\(Ingredient n _ _) -> n == ingName) ings of
+                Just ing -> ing : is
+                Nothing -> is) sublists
+            else IngredientList n is (map (updateSubList ingName listName) sublists)
+    in Right (["Added ingredient to list"], State updatedLists ings)
+
+stateTransition (State lists ings) (AddList listName parentListName) =
+    let updatedLists = map (updateList listName parentListName) lists
+        updateList listName parentListName (name, items) =
+            if name == parentListName
+            then (name, addToList listName items)
+            else (name, map (updateSubList listName parentListName) items)
+        addToList listName items =
+            case find (\(IngredientList n _ _) -> n == listName) (concatMap snd lists) of
+                Just sublist -> addSublistToList sublist items
+                Nothing -> items
         addSublistToList sublist [] = []
         addSublistToList sublist (IngredientList n is sublists : rest) =
-            IngredientList n is (sublist ++ sublists) : rest
-    in Right (["Added ingredient or list to list"], State updatedLists ings)
+            IngredientList n is (sublist : sublists) : rest
+        updateSubList listName parentListName (IngredientList n is sublists) =
+            if n == parentListName
+            then IngredientList n is (addToList listName sublists)
+            else IngredientList n is (map (updateSubList listName parentListName) sublists)
+    in Right (["Added ingredient list to list"], State updatedLists ings)
+
+stateTransition (State lists ings) (GetList listName) =
+    case find (\(name, _) -> name == listName) lists of
+        Just (_, ingredientLists) -> Right (["Retrieved list:\n" ++ unlines (map formatIngredientList ingredientLists)], State lists ings)
+        Nothing -> Left "List not found"
 
 stateTransition (State lists ings) (Remove ingName listName) =
-    let updatedLists = map (\(name, items) -> if name == listName then (name, removeFromList ingName items) else (name, items)) lists
+    let updatedLists = map (updateList ingName listName) lists
+        updateList ingName listName (name, items) =
+            if name == listName
+            then (name, removeFromList ingName items)
+            else (name, map (updateSubList ingName listName) items)
         removeFromList ingName [] = []
         removeFromList ingName (IngredientList n is sublists : rest) =
-            IngredientList n (filter (\(Ingredient n _ _) -> n /= ingName) is) sublists : removeFromList ingName rest
+            IngredientList n (filter (\(Ingredient n _ _) -> n /= ingName) is) (map (updateSubList ingName listName) sublists) : removeFromList ingName rest
+        updateSubList ingName listName (IngredientList n is sublists) =
+            if n == listName
+            then IngredientList n (filter (\(Ingredient n _ _) -> n /= ingName) is) sublists
+            else IngredientList n is (map (updateSubList ingName listName) sublists)
     in if any (\(name, items) -> name == listName && not (null (filter (\(Ingredient n _ _) -> n == ingName) (concatMap (\(IngredientList _ is _) -> is) items)))) updatedLists
        then Right (["Removed ingredient"], State updatedLists ings)
        else if any (\(name, items) -> not (null (removeFromList ingName items))) updatedLists
@@ -139,7 +174,7 @@ stateTransition (State lists ings) (Delete name) =
         Just _ ->
             let remainingIngs = filter (\(Ingredient n _ _) -> n /= name) ings
             in Right (["Deleted ingredient"], State lists remainingIngs)
-        Nothing -> 
+        Nothing ->
             let updatedLists = map (\(listName, items) -> (listName, deleteFromList name items)) lists
                 deleteFromList _ [] = []
                 deleteFromList name (IngredientList n is sublists : rest)
@@ -149,19 +184,44 @@ stateTransition (State lists ings) (Delete name) =
                then Right (["Deleted list"], State (filter (\(listName, items) -> listName /= name && not (null items)) updatedLists) ings)
                else Left "Ingredient or list not found"
 
+formatIngredientList :: IngredientList -> String
+formatIngredientList (IngredientList name ingredients sublists) =
+    formatName name ++ ": {\n" ++
+    concatMap formatIngredient ingredients ++
+    concatMap formatSublist sublists ++
+    "}\n"
+  where
+    formatIngredient (Ingredient name qty unit) =
+        "    " ++ formatName name ++ ": " ++ show qty ++ " " ++ show unit ++ "\n"
+    formatSublist sublist =
+        unlines (map ("    " ++) (lines (formatIngredientList sublist)))
+
+instance Show Name where
+    show (WordName name) = name
+    show (NumberName number) = show number
+    show (StringName str) = str
+
+instance Show Quantity where
+    show (Quantity qty) = show qty
+
 -- Helper functions for parsing
 and2' :: (a -> b -> c) -> Parser a -> Parser b -> Parser c
 and2' f a b = do
     v1 <- a
-    v2 <- b
-    return $ f v1 v2
+    f v1 <$> b
 
 and3' :: (a -> b -> c -> d) -> Parser a -> Parser b -> Parser c -> Parser d
 and3' f a b c = do
     v1 <- a
     v2 <- b
+    f v1 v2 <$> c
+
+and4' :: (a -> b -> c -> d -> e) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e
+and4' f a b c d = do
+    v1 <- a
+    v2 <- b
     v3 <- c
-    return $ f v1 v2 v3
+    f v1 v2 v3 <$> d
 
 and5' :: (a -> b -> c -> d -> e -> f) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f
 and5' f a b c d e = do
@@ -169,8 +229,7 @@ and5' f a b c d e = do
     v2 <- b
     v3 <- c
     v4 <- d
-    v5 <- e
-    return $ f v1 v2 v3 v4 v5
+    f v1 v2 v3 v4 <$> e
 
 and7' :: (a -> b -> c -> d -> e -> f -> g -> h) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f -> Parser g -> Parser h
 and7' f a b c d e g h = do
@@ -180,13 +239,13 @@ and7' f a b c d e g h = do
     v4 <- d
     v5 <- e
     v6 <- g
-    v7 <- h
-    return $ f v1 v2 v3 v4 v5 v6 v7
+    f v1 v2 v3 v4 v5 v6 <$> h
 
 parseChar :: Char -> Parser Char
 parseChar c = do
     input <- lift S.get
-    case input of
+    let input' = dropWhile isSpace input
+    case input' of
         [] -> throwE $ "Cannot find " ++ [c] ++ " in an empty input"
         (h:t) -> if c == h then lift (S.put t) >> return c else throwE $ c : " is not found in " ++ [h]
 
@@ -251,11 +310,11 @@ parseUnit = do
         _ -> throwE "Invalid unit"
 
 parseIngredient :: Parser Ingredient
-parseIngredient = and3' Ingredient parseName (parseChar ':' *> parseQuantity) (parseChar ' ' *> parseUnit)
+parseIngredient = and4' (\name _ qty unit -> Ingredient name qty unit) parseName (parseChar ':') parseQuantity (parseChar ' ' *> parseUnit)
 
+-- Parser for IngredientList
 parseIngredientList :: Parser IngredientList
-parseIngredientList = and3' (\name _ (ings, lists) -> IngredientList name ings lists) parseName (parseChar ':') (parseChar '{' *> parseMoreItems <* parseChar '}')
-
+parseIngredientList = and5' (\name _ _ (ingredients, nestedLists) _ -> IngredientList name ingredients nestedLists) parseName (parseChar ':') (parseChar '{') parseMoreItems (parseChar '}')
 
 parseMoreItems :: Parser ([Ingredient], [IngredientList])
 parseMoreItems = do
@@ -264,8 +323,8 @@ parseMoreItems = do
         (Right ing, rest) -> do
             lift (S.put rest)
             case S.runState (runExceptT (parseChar ',')) rest of
-                (Right rest', _) -> do
-                    lift (S.put rest)
+                (Right _, rest') -> do
+                    lift (S.put rest')
                     (ings, lists) <- parseMoreItems
                     return (ing : ings, lists)
                 (Left _, _) -> return ([ing], [])
@@ -273,15 +332,15 @@ parseMoreItems = do
             (Right list, rest) -> do
                 lift (S.put rest)
                 case S.runState (runExceptT (parseChar ',')) rest of
-                    (Right rest', _) -> do
-                        lift (S.put rest)
+                    (Right _, rest') -> do
+                        lift (S.put rest')
                         (ings, lists) <- parseMoreItems
                         return (ings, list : lists)
                     (Left _, _) -> return ([], [list])
             (Left _, _) -> return ([], [])
 
 parseQuery :: String -> Either String Query
-parseQuery input = 
+parseQuery input =
     case S.runState (runExceptT parseCreate) input of
         (Right query, _) -> Right query
         (Left err1, _) -> case S.runState (runExceptT parseAdd) input of
@@ -300,7 +359,9 @@ parseQuery input =
                                     (Right query, _) -> Right query
                                     (Left err8, _) -> case S.runState (runExceptT parseFind) input of
                                         (Right query, _) -> Right query
-                                        (Left err9, _) -> Left $ "Parse errors: " ++ err1 ++ ", " ++ err2 ++ ", " ++ err3 ++ ", " ++ err4 ++ ", " ++ err5 ++ ", " ++ err6 ++ ", " ++ err7 ++ ", " ++ err8 ++ ", " ++ err9
+                                        (Left err9, _) -> case S.runState (runExceptT parseAddList) input of
+                                            (Right query, _) -> Right query
+                                            (Left err10, _) -> Left $ "Parse errors: " ++ err8 ++ ", " ++ err9 ++ ", " ++ err10
 
 parseCreate :: Parser Query
 parseCreate = and7' create (string "create(") parseName (parseChar ',') parseQuantity (parseChar ',') parseUnit (parseChar ')')
@@ -309,6 +370,10 @@ parseCreate = and7' create (string "create(") parseName (parseChar ',') parseQua
 parseAdd :: Parser Query
 parseAdd = and5' add (string "add(") parseName (parseChar ',') parseName (parseChar ')')
     where add _ name _ listName _ = Add name listName
+
+parseAddList :: Parser Query
+parseAddList = and5' add (string "add_list(") parseName (parseChar ',') parseName (parseChar ')')
+    where add _ name _ listName _ = AddList name listName
 
 parseRemove :: Parser Query
 parseRemove = and5' remove (string "remove(") parseName (parseChar ',') parseName (parseChar ')')

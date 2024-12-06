@@ -1,0 +1,115 @@
+Starting by running this in client main:
+
+let program = do
+            D.create "apple" 42 "cup"
+            D.create "strawberry" 100 "g"
+            D.createEmptyList "fruits"
+            D.add "strawberry" "fruits"
+            D.add "apple" "fruits"
+            D.remove "apple" "fruits"
+            D.delete "apple"
+            D.createEmptyList "meal"
+            D.create "bread" 200 "g"
+            D.add "bread" "meal"
+            D.addList "fruits" "meal"
+    _ <- interpretProgram program
+    let program = do 
+            D.create "banana" 100 "g"
+    _ <- interpretProgram program
+    let program = do
+            D.add "banana" "fruits"
+    _ <- interpretProgram program        
+    let program = do
+            D.save
+    result <- interpretProgram program
+    print result
+
+
+
+The Program decides how it should send the commands by it self and returns this info to the client:
+
+Registering library for fp2024-0.1.0.0..
+Using batch interpreter
+Using one-by-one interpreter
+Using one-by-one interpreter
+Using one-by-one interpreter
+
+
+
+Server Side:
+
+Request was: BEGIN
+create(apple, 42, cup)
+create(strawberry, 100, g)
+create_empty_list(fruits)
+add(strawberry, fruits)
+add(apple, fruits)
+remove(apple, fruits)
+delete(apple)
+create_empty_list(meal)
+create(bread, 200, g)
+add(bread, meal)
+add_list(fruits, meal)
+END
+
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: create(banana, 100, g)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: add(banana, fruits)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: save
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
+
+
+
+And the saved state looks like this:
+
+BEGIN
+create(banana, 100, g)
+create(bread, 200, g)
+create(strawberry, 100, g)
+create_empty_list(meal)
+create_empty_list(fruits)
+add(bread, meal)
+add_list(fruits, meal)
+add(banana, meal)
+add(strawberry, meal)
+add(banana, fruits)
+add(strawberry, fruits)
+END
+
+
+
+Now load command test:
+
+Client side:
+
+let program = do
+        D.load
+result <- interpretProgram program
+print result
+
+Registering library for fp2024-0.1.0.0..
+Using one-by-one interpreter
+
+
+Server side returns this:
+
+Setting phasers to stun... (port 3000) (ctrl-c to quit)
+Request was: load
+Loaded state:
+BEGIN
+create(banana, 100, g)
+create(bread, 200, g)
+create(strawberry, 100, g)
+create_empty_list(meal)
+create_empty_list(fruits)
+add(bread, meal)
+add_list(fruits, meal)
+add(banana, meal)
+add(strawberry, meal)
+add(banana, fruits)
+add(strawberry, fruits)
+END
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
+

@@ -16,6 +16,9 @@ interpretInMemory (Free (D.Create name qty unit next)) = do
 interpretInMemory (Free (D.Add ingName listName next)) = do
     modify (addToList ingName listName)
     interpretInMemory next
+interpretInMemory (Free (D.AddList listName lisName next)) = do
+    modify (addListToList listName lisName)
+    interpretInMemory next
 interpretInMemory (Free (D.Remove ingName listName next)) = do
     modify (removeFromList ingName listName)
     interpretInMemory next
@@ -24,9 +27,6 @@ interpretInMemory (Free (D.CreateEmptyList name next)) = do
     interpretInMemory next
 interpretInMemory (Free (D.Delete name next)) = do
     modify (filter ((/= name) . fst))
-    interpretInMemory next
-interpretInMemory (Free (D.CreateList name items next)) = do
-    modify ((name, show items) :)
     interpretInMemory next
 interpretInMemory (Free (D.Save next)) = do
     state <- get
@@ -40,6 +40,9 @@ interpretInMemory (Free (D.Load next)) = do
 
 addToList :: String -> String -> [(String, String)] -> [(String, String)]
 addToList ingName listName = map (\(name, items) -> if name == listName then (name, if null items then ingName else items ++ ", " ++ ingName) else (name, items))
+
+addListToList :: String -> String -> [(String, String)] -> [(String, String)]
+addListToList listName parentListName = map (\(name, items) -> if name == parentListName then (name, if null items then listName else items ++ ", " ++ listName) else (name, items))
 
 removeFromList :: String -> String -> [(String, String)] -> [(String, String)]
 removeFromList ingName listName = map (\(name, items) -> if name == listName then (name, unwords $ filter (/= ingName) (words items)) else (name, items))
