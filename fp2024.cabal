@@ -73,6 +73,7 @@ executable fp2024-four-client
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , containers
     , fp2024
     , free
     , lens

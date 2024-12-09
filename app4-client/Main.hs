@@ -10,6 +10,7 @@ import Control.Monad.Except (ExceptT, throwError, runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
 import qualified MemoryInter as I
+import Data.List (delete, find, isPrefixOf)
 
 -- Interpreter that sends requests one-by-one
 interpretOneByOne :: D.Program a -> IO a
@@ -45,8 +46,45 @@ interpretOneByOne (Free (D.Load next)) = do
 interpretBatch :: D.Program a -> IO String
 interpretBatch program = do
     let commands = collectCommands program
-    _ <- W.post "http://localhost:3000" (pack $ unlines  ("BEGIN" : commands ++ ["END"]))
+        optimizedCommands = optimizeCommands commands
+    _ <- W.post "http://localhost:3000" (pack $ unlines ("BEGIN" : optimizedCommands ++ ["END"]))
     return "Success"
+
+-- Function to optimize commands by removing canceling pairs
+optimizeCommands :: [String] -> [String]
+optimizeCommands [] = []
+optimizeCommands (cmd:cmds) = do
+    let cancelingCmd = findCancelingCommand cmd cmds
+    case cancelingCmd of
+        Just c -> optimizeCommands (delete c cmds) -- Remove both commands
+        Nothing -> cmd : optimizeCommands cmds
+
+-- Function to find a canceling command
+findCancelingCommand :: String -> [String] -> Maybe String
+findCancelingCommand cmd cmds = find (isCanceling cmd) cmds
+
+-- Function to check if two commands cancel each other out
+-- Function to check if two commands cancel each other out
+isCanceling :: String -> String -> Bool
+isCanceling cmd1 cmd2
+    | "create(" `isPrefixOf` cmd1 && "delete(" `isPrefixOf` cmd2 = extractName cmd1 == extractName cmd2
+    | "add(" `isPrefixOf` cmd1 && "remove(" `isPrefixOf` cmd2 = extractName cmd1 == extractName cmd2 && extractListName cmd1 == extractListName cmd2
+    | otherwise = False
+
+-- Helper functions to extract names and list names from commands
+extractName :: String -> String
+extractName cmd
+    | "create(" `isPrefixOf` cmd = takeWhile (/= ',') $ drop 7 cmd
+    | "delete(" `isPrefixOf` cmd = takeWhile (/= ')') $ drop 7 cmd
+    | "add(" `isPrefixOf` cmd = takeWhile (/= ',') $ drop 4 cmd
+    | "remove(" `isPrefixOf` cmd = takeWhile (/= ',') $ drop 7 cmd
+    | otherwise = ""
+
+extractListName :: String -> String
+extractListName cmd
+    | "add(" `isPrefixOf` cmd = takeWhile (/= ')') $ drop 1 $ dropWhile (/= ',') cmd
+    | "remove(" `isPrefixOf` cmd = takeWhile (/= ')') $ drop 1 $ dropWhile (/= ',') cmd
+    | otherwise = ""
 
 collectCommands :: D.Program a -> [String]
 collectCommands (Pure _) = []
@@ -74,7 +112,6 @@ interpretProgram program = do
 
 main :: IO ()
 main = do
-    -- Example usage of the DSL
     let program = do
             D.create "apple" 42 "cup"
             D.create "strawberry" 100 "g"
@@ -87,7 +124,7 @@ main = do
             D.create "bread" 200 "g"
             D.add "bread" "meal"
             D.addList "fruits" "meal"
-    _ <- interpretProgram program
+    _ <- interpretOneByOne program
     let program = do 
             D.create "banana" 100 "g"
     _ <- interpretProgram program
@@ -98,7 +135,6 @@ main = do
             D.save
     result <- interpretProgram program
     print result
-
     -- let program = do
     --         D.load
     -- result <- interpretProgram program

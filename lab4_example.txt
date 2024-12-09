@@ -1,4 +1,4 @@
-Starting by running this in client main:
+Starting by running this in client main (using interpretBatch and Single):
 
 let program = do
             D.create "apple" 42 "cup"
@@ -12,7 +12,7 @@ let program = do
             D.create "bread" 200 "g"
             D.add "bread" "meal"
             D.addList "fruits" "meal"
-    _ <- interpretProgram program
+    _ <- interpretBatch program
     let program = do 
             D.create "banana" 100 "g"
     _ <- interpretProgram program
@@ -39,13 +39,9 @@ Using one-by-one interpreter
 Server Side:
 
 Request was: BEGIN
-create(apple, 42, cup)
 create(strawberry, 100, g)
 create_empty_list(fruits)
 add(strawberry, fruits)
-add(apple, fruits)
-remove(apple, fruits)
-delete(apple)
 create_empty_list(meal)
 create(bread, 200, g)
 add(bread, meal)
@@ -61,6 +57,40 @@ Request was: save
 Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
 
 
+It shows that before sending batch http request it first removes the commands that cancel each other out.
+
+And now only using single:
+
+Request was: create(apple, 42, cup)
+Current state: State {ingredientLists = [], ingredients = [Ingredient apple 42 Cup]}
+Request was: create(strawberry, 100, g)
+Current state: State {ingredientLists = [], ingredients = [Ingredient strawberry 100 G,Ingredient apple 42 Cup]}
+Request was: create_empty_list(fruits)
+Current state: State {ingredientLists = [(fruits,[IngredientList fruits [] []])], ingredients = [Ingredient strawberry 100 G,Ingredient apple 42 Cup]}
+Request was: add(strawberry, fruits)
+Current state: State {ingredientLists = [(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient strawberry 100 G,Ingredient apple 42 Cup]}
+Request was: add(apple, fruits)
+Current state: State {ingredientLists = [(fruits,[IngredientList fruits [Ingredient apple 42 Cup,Ingredient strawberry 100 G] []])], ingredients = [Ingredient strawberry 100 G,Ingredient apple 42 Cup]}
+Request was: remove(apple, fruits)
+Current state: State {ingredientLists = [(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient strawberry 100 G,Ingredient apple 42 Cup]}
+Request was: delete(apple)
+Current state: State {ingredientLists = [(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient strawberry 100 G]}
+Request was: create_empty_list(meal)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [] []]),(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient strawberry 100 G]}
+Request was: create(bread, 200, g)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [] []]),(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: add(bread, meal)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] []]),(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: add_list(fruits, meal)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: create(banana, 100, g)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: add(banana, fruits)
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
+Request was: save
+Current state: State {ingredientLists = [(meal,[IngredientList meal [Ingredient bread 200 G] [IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []]]),(fruits,[IngredientList fruits [Ingredient banana 100 G,Ingredient strawberry 100 G] []])], ingredients = [Ingredient banana 100 G,Ingredient bread 200 G,Ingredient strawberry 100 G]}
+
+it excecutes all of the commands in the server
 
 And the saved state looks like this:
 

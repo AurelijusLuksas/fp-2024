@@ -87,6 +87,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - containers
     - mtl
     - fp2024
     - free
