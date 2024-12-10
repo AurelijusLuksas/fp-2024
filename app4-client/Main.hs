@@ -50,7 +50,6 @@ interpretBatch program = do
     _ <- W.post "http://localhost:3000" (pack $ unlines ("BEGIN" : optimizedCommands ++ ["END"]))
     return "Success"
 
--- Function to optimize commands by removing canceling pairs
 optimizeCommands :: [String] -> [String]
 optimizeCommands [] = []
 optimizeCommands (cmd:cmds) = do
@@ -59,12 +58,10 @@ optimizeCommands (cmd:cmds) = do
         Just c -> optimizeCommands (delete c cmds) -- Remove both commands
         Nothing -> cmd : optimizeCommands cmds
 
--- Function to find a canceling command
+
 findCancelingCommand :: String -> [String] -> Maybe String
 findCancelingCommand cmd cmds = find (isCanceling cmd) cmds
 
--- Function to check if two commands cancel each other out
--- Function to check if two commands cancel each other out
 isCanceling :: String -> String -> Bool
 isCanceling cmd1 cmd2
     | "create(" `isPrefixOf` cmd1 && "delete(" `isPrefixOf` cmd2 = extractName cmd1 == extractName cmd2
